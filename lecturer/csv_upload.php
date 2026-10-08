@@ -596,7 +596,7 @@ if (isset($_POST['upload'])) {
 
 <script src="../assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js"></script>
+<script src="../assets/js/app.js?v=2"></script>
 <script>
 // Show selected file name
 function showFileName(input) {

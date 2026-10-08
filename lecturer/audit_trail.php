@@ -195,6 +195,6 @@ mysqli_stmt_close($stmt_logs);
 
 <script src="../assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js"></script>
+<script src="../assets/js/app.js?v=2"></script>
 </body>
 </html>

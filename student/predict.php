@@ -474,7 +474,7 @@ if (isset($_GET['get_marks']) && isset($_GET['subject_id'])) {
 
 <script src="../assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js"></script>
+<script src="../assets/js/app.js?v=2"></script>
 <script>
 function loadExistingMarks(subjectId) {
     const aField = document.getElementById('c_assignment');

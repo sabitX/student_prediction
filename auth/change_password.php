@@ -140,6 +140,6 @@ $dashboard = role_dashboard_path($_SESSION['role']);
 </div>
 
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js"></script>
+<script src="../assets/js/app.js?v=2"></script>
 </body>
 </html>

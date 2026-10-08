@@ -699,7 +699,7 @@ mysqli_stmt_close($stmt_risk);
 
 <script src="../assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js"></script>
+<script src="../assets/js/app.js?v=2"></script>
 <script>
 document.getElementById('bookModal').addEventListener('show.bs.modal', function (e) {
     const btn = e.relatedTarget;

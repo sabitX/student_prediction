@@ -425,7 +425,7 @@ function mark_cell($v) {
 
 <script src="../assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js"></script>
+<script src="../assets/js/app.js?v=2"></script>
 <?php require '../includes/onboarding.php'; ?>
 <script>
 window.addEventListener('load', () => {

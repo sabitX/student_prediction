@@ -551,7 +551,7 @@ while ($l = mysqli_fetch_assoc($lecturers)) { $lec_list[] = $l; }
 </div>
 
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js"></script>
+<script src="../assets/js/app.js?v=2"></script>
 <script>
 document.getElementById('editSubjectModal').addEventListener('show.bs.modal', function (e) {
     const d = e.relatedTarget.dataset;

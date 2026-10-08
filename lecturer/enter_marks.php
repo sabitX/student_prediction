@@ -532,7 +532,7 @@ function mark_input_value($v) {
 
     <script src="../assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="../assets/js/theme-toggle.js"></script>
-    <script src="../assets/js/app.js"></script>
+    <script src="../assets/js/app.js?v=2"></script>
     <script>
     // Academic-level filter tabs — purely client-side visibility toggling.
     // Rows (and the mark inputs inside them) stay in the DOM at all times,

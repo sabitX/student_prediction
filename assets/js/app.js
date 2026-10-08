@@ -1,10 +1,20 @@
 // SPTS — shared behaviour for every page.
 //  • Prevents double submission of forms (double-clicks, impatient users).
+//  • Keeps pop-up dialogs (Bootstrap modals) clickable.
 //  • Adds a menu button that opens the sidebar on small screens.
 //  • Adds a "skip to content" link for keyboard users.
 //  • Shows a one-time notice (e.g. "Access denied") left by the server.
 (function () {
     'use strict';
+
+    // ── Modals above their backdrop ──────────────────────────────────
+    // .layout-wrapper has its own z-index, which traps any modal inside it
+    // below Bootstrap's backdrop (added to <body>): the dialog shows but
+    // greyed out, and clicks hit the backdrop. Moving each modal to <body>
+    // as it opens puts it back on top. Listeners and ids move with it.
+    document.addEventListener('show.bs.modal', function (e) {
+        if (e.target.parentElement !== document.body) document.body.appendChild(e.target);
+    });
 
     // ── Double-submit guard ──────────────────────────────────────────
     // Runs after any inline onsubmit="return confirm(...)" handler; if

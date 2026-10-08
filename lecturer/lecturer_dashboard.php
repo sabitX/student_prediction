@@ -429,7 +429,7 @@ mysqli_stmt_close($stmt_appr);
 
 <script src="../assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js"></script>
+<script src="../assets/js/app.js?v=2"></script>
 <?php require '../includes/onboarding.php'; ?>
 <script>
 document.getElementById('rescheduleModal').addEventListener('show.bs.modal', function (e) {

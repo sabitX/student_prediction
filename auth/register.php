@@ -449,6 +449,6 @@ function previewAcademicLevel() {
 document.getElementById('studentIdField').addEventListener('input', previewAcademicLevel);
 </script>
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js"></script>
+<script src="../assets/js/app.js?v=2"></script>
 </body>
 </html>
