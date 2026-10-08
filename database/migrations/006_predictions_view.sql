@@ -32,7 +32,7 @@ SELECT
         WHEN ROUND(p.assignment * 0.20 + p.midterm * 0.30 + p.final_exam * 0.40 + p.attendance * 0.10, 2) >= 60 THEN 'Pass'
         WHEN ROUND(p.assignment * 0.20 + p.midterm * 0.30 + p.final_exam * 0.40 + p.attendance * 0.10, 2) >= 50 THEN 'At Risk'
         ELSE 'Fail'
-    END AS predicted_status
+    END COLLATE utf8mb4_unicode_ci AS predicted_status
 FROM performance p
 WHERE p.assignment IS NOT NULL
   AND p.midterm    IS NOT NULL

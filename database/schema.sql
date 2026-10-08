@@ -2,7 +2,7 @@
 -- Fresh install: create the database `student_prediction`
 -- (CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci), import this file as a
 -- user that can CREATE TRIGGER (e.g. root), then follow README
--- "First-time setup". Existing installs: run database/migrations/001–006
+-- "First-time setup". Existing installs: run database/migrations/001–007
 -- in order instead.
 --
 -- Generated from a database with all migrations applied, so a fresh
@@ -203,7 +203,7 @@ SELECT
         WHEN ROUND(p.assignment * 0.20 + p.midterm * 0.30 + p.final_exam * 0.40 + p.attendance * 0.10, 2) >= 60 THEN 'Pass'
         WHEN ROUND(p.assignment * 0.20 + p.midterm * 0.30 + p.final_exam * 0.40 + p.attendance * 0.10, 2) >= 50 THEN 'At Risk'
         ELSE 'Fail'
-    END AS predicted_status
+    END COLLATE utf8mb4_unicode_ci AS predicted_status
 FROM performance p
 WHERE p.assignment IS NOT NULL
   AND p.midterm    IS NOT NULL

@@ -65,6 +65,10 @@ set_exception_handler(function (Throwable $e) {
 try {
     $conn = mysqli_connect($env['DB_HOST'], $env['DB_USER'], $env['DB_PASSWORD'], $env['DB_NAME']);
     mysqli_set_charset($conn, 'utf8mb4');
+    // Compare text the same way the tables do. Server defaults differ
+    // (MariaDB 11.8 uses utf8mb4_uca1400_ai_ci, XAMPP utf8mb4_general_ci),
+    // and mixing collations makes some comparisons fail outright.
+    mysqli_query($conn, "SET collation_connection = 'utf8mb4_unicode_ci'");
     // Strict mode: invalid values (bad enum, NULL in NOT NULL, too-long
     // text) are rejected instead of being silently changed. XAMPP's default
     // server mode isn't strict, so it is set here for every connection.

@@ -28,7 +28,7 @@ Going live on a real server? Follow **DEPLOYMENT.md** (HTTPS, php.ini, backups, 
 
 ### Upgrading an existing install
 
-Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql` and `006_predictions_view.sql`, each once, in that order, as MySQL `root` (004–006 create triggers and a view). After that, do steps 5–6 above.
+Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql` and `007_predictions_view_collation.sql`, each once, in that order, as MySQL `root` (004–007 create triggers and a view). After that, do steps 5–6 above.
 
 ---
 
