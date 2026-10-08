@@ -1,0 +1,10 @@
+# Server-specific secrets — copy config/env.example.php instead.
+config/env.php
+
+# Local/editor clutter
+*.log
+*.bak
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

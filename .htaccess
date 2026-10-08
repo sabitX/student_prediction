@@ -1,0 +1,39 @@
+# ── SPTS web server settings ──────────────────────────────────────────────
+
+# Custom 404 page. The path is relative to the web root, so if the project
+# folder is renamed or moved, update "/student_prediction/" to match.
+ErrorDocument 404 /student_prediction/404.php
+
+# Never list folder contents.
+Options -Indexes
+
+# Documentation, database dumps and backup/editor files are not for browsers.
+<FilesMatch "\.(md|sql|log|bak|ini|dist|example\.php)$|^\.|~$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    # Don't advertise the PHP version.
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
+
+    # Browser security headers.
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+
+    # Content Security Policy: everything loads from this site, except the
+    # Inter font from Google Fonts. 'unsafe-inline' is needed because pages
+    # use inline <script>/<style> blocks and onclick handlers.
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
+    # Only over HTTPS: tell browsers to always use HTTPS for a year.
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on'"
+
+    # Static assets can be cached; pages are sent no-store by PHP.
+    <FilesMatch "\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?)$">
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+</IfModule>

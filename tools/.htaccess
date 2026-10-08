@@ -1,0 +1,2 @@
+# Setup scripts may only be run from the server itself (http://localhost/...).
+Require local

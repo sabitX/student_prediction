@@ -1,0 +1,206 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+* {
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    background: #f0f4ff;
+    background-attachment: fixed;
+    min-height: 100vh;
+    color: #333;
+    position: relative;
+    animation: fadeIn 0.4s ease;
+}
+
+body::after {
+    content: '';
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100vw;
+    height: 100vh;
+    background-image: url('../images/nilai_logo.png');
+    background-size: 70%;
+    background-repeat: no-repeat;
+    background-position: center;
+    opacity: 0.07;
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* Navbar */
+.navbar {
+    box-shadow: 0 2px 20px rgba(0,0,0,0.12);
+    backdrop-filter: blur(8px);
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(6px);
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.11);
+}
+
+.card-title {
+    font-weight: 600;
+    color: #2d2d2d;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 10px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #4f8ef7, #2563eb);
+    border: none;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #34d399, #059669);
+    border: none;
+}
+
+/* Inputs */
+input.form-control,
+select.form-select,
+textarea.form-control {
+    border-radius: 10px;
+    border: 1.5px solid #e2e8f0;
+    padding: 10px 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: #fafbff;
+}
+
+input.form-control:focus,
+select.form-select:focus {
+    border-color: #4f8ef7;
+    box-shadow: 0 0 0 3px rgba(79,142,247,0.15);
+    background: #fff;
+}
+
+/* Tables */
+.table {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.table thead th {
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    border: none;
+}
+
+.table tbody tr {
+    transition: background 0.15s;
+}
+
+.table-hover tbody tr:hover {
+    background: #f0f6ff;
+}
+
+/* Badges */
+.badge {
+    font-size: 0.8rem;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+/* Alerts */
+.alert {
+    border-radius: 12px;
+    border: none;
+    font-weight: 500;
+}
+
+/* Progress bars */
+.progress {
+    background: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    transition: width 1.2s ease-in-out;
+    border-radius: 10px;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: -0.2px;
+}
+
+/* Shadow utility */
+.shadow {
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08) !important;
+}
+
+/* Page load */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Floating animation for summary cards */
+.score-card {
+    animation: floatUp 0.5s ease forwards;
+    opacity: 0;
+}
+
+.score-card:nth-child(1) { animation-delay: 0.1s; }
+.score-card:nth-child(2) { animation-delay: 0.2s; }
+.score-card:nth-child(3) { animation-delay: 0.3s; }
+.score-card:nth-child(4) { animation-delay: 0.4s; }
+
+@keyframes floatUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Live preview box */
+#live-preview {
+    border-radius: 14px !important;
+    background: linear-gradient(135deg, #f8faff, #f0fff8) !important;
+    border: 1.5px solid #d1e3ff !important;
+}
+
+/* Modal */
+.modal-content {
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+/* Footer */
+footer {
+    background: linear-gradient(135deg, #1e293b, #0f172a) !important;
+    letter-spacing: 0.3px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 7px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; }

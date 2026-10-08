@@ -1,0 +1,220 @@
+/* ============================================================
+   SPTS — Dark Mode
+   Activated by setting data-bs-theme="dark" on <html>.
+   Works together with Bootstrap 5.3's native color modes
+   (tables, modals, alerts, forms, badges already respond to
+   data-bs-theme). The rules below re-theme this project's own
+   custom classes and inline-styled colors.
+   ============================================================ */
+
+/* ── Theme toggle button ─────────────────────────────────────── */
+.theme-toggle {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+.theme-toggle:hover { background: rgba(255,255,255,0.18); }
+
+.theme-toggle-floating {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 2000;
+    background: #1A3A5C;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+.theme-toggle-floating:hover { background: #14304d; }
+
+/* ── Base page ────────────────────────────────────────────────── */
+[data-bs-theme="dark"] body {
+    background: #0F172A !important;
+    color: #E2E8F0 !important;
+}
+
+[data-bs-theme="dark"] .bg-logo {
+    opacity: 0.05 !important;
+    filter: grayscale(100%) invert(1) !important;
+}
+
+/* ── Card / panel containers (explicit, finite list) ─────────── */
+[data-bs-theme="dark"] .dashboard-card,
+[data-bs-theme="dark"] .stat-card,
+[data-bs-theme="dark"] .login-card,
+[data-bs-theme="dark"] .register-card,
+[data-bs-theme="dark"] .reset-card,
+[data-bs-theme="dark"] .mentor-card,
+[data-bs-theme="dark"] .role-card,
+[data-bs-theme="dark"] .feature-card,
+[data-bs-theme="dark"] .table-container,
+[data-bs-theme="dark"] .upload-zone,
+[data-bs-theme="dark"] .modal-content {
+    background: #1E293B !important;
+    border-color: #334155 !important;
+}
+
+[data-bs-theme="dark"] .mentor-card {
+    background: #17212F !important;
+}
+[data-bs-theme="dark"] .mentor-card:hover {
+    background: #1E293B !important;
+}
+
+/* Common inline "light secondary panel" backgrounds used for tip
+   boxes, modal headers/footers, breakdown panels, etc. */
+[data-bs-theme="dark"] [style*="background:#F8FAFC" i],
+[data-bs-theme="dark"] [style*="background: #F8FAFC" i],
+[data-bs-theme="dark"] [style*="background:#F1F5F9" i],
+[data-bs-theme="dark"] [style*="background: #F1F5F9" i] {
+    background: #16202E !important;
+}
+
+/* ── Text color re-theme, scoped to content areas ────────────────
+   Universal selector so it catches BOTH inline `style="color:..."`
+   and class-based color rules alike. Excludes elements that carry
+   their own intentional color (badges, pills, buttons, Bootstrap
+   text-color utilities, form controls) so status/semantic colors
+   are preserved. */
+[data-bs-theme="dark"] .main-content *:not([style*="background"]):not([class*="text-"]):not([class*="btn"]):not([class*="badge"]):not([class*="pill"]):not(input):not(select):not(textarea):not(option):not(.icon-wrap *):not(.feature-icon-wrap *):not(.role-icon *),
+[data-bs-theme="dark"] .container *:not([style*="background"]):not([class*="text-"]):not([class*="btn"]):not([class*="badge"]):not([class*="pill"]):not(input):not(select):not(textarea):not(option):not(.icon-wrap *):not(.feature-icon-wrap *):not(.role-icon *),
+[data-bs-theme="dark"] .section-how *:not([style*="background"]):not([class*="text-"]):not([class*="btn"]):not([class*="badge"]):not([class*="pill"]):not(input):not(select):not(textarea):not(option):not(.icon-wrap *):not(.feature-icon-wrap *):not(.role-icon *),
+[data-bs-theme="dark"] .section-roles *:not([style*="background"]):not([class*="text-"]):not([class*="btn"]):not([class*="badge"]):not([class*="pill"]):not(input):not(select):not(textarea):not(option):not(.icon-wrap *):not(.feature-icon-wrap *):not(.role-icon *) {
+    color: #E2E8F0 !important;
+}
+
+/* Refinement: soften the specific "muted gray" tones to a dimmer
+   shade so the hierarchy isn't perfectly flat. Declared after the
+   rule above, so it wins ties on the same elements. */
+[data-bs-theme="dark"] .main-content [style*="64748B" i]:not([style*="background"]),
+[data-bs-theme="dark"] .main-content [style*="6C757D" i]:not([style*="background"]),
+[data-bs-theme="dark"] .main-content [style*="475569" i]:not([style*="background"]),
+[data-bs-theme="dark"] .main-content [style*="94A3B8" i]:not([style*="background"]),
+[data-bs-theme="dark"] .container [style*="64748B" i]:not([style*="background"]),
+[data-bs-theme="dark"] .container [style*="6C757D" i]:not([style*="background"]),
+[data-bs-theme="dark"] .container [style*="475569" i]:not([style*="background"]),
+[data-bs-theme="dark"] .section-how [style*="64748B" i]:not([style*="background"]),
+[data-bs-theme="dark"] .section-roles [style*="64748B" i]:not([style*="background"]) {
+    color: #94A3B8 !important;
+}
+
+/* ── Form controls ────────────────────────────────────────────── */
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select,
+[data-bs-theme="dark"] .input-group-text,
+[data-bs-theme="dark"] .mark-input {
+    background: #0F172A !important;
+    border-color: #334155 !important;
+    color: #E2E8F0 !important;
+}
+[data-bs-theme="dark"] .form-control:focus,
+[data-bs-theme="dark"] .form-select:focus,
+[data-bs-theme="dark"] .mark-input:focus {
+    background: #0F172A !important;
+    color: #F1F5F9 !important;
+}
+[data-bs-theme="dark"] .form-control::placeholder {
+    color: #64748B !important;
+}
+[data-bs-theme="dark"] .form-control:disabled,
+[data-bs-theme="dark"] .form-select:disabled {
+    background: #1A2434 !important;
+    color: #64748B !important;
+}
+/* Locked (DB-sourced) fields on the What-If Calculator keep a
+   distinguishable, darker green tint instead of the light one. */
+[data-bs-theme="dark"] .locked-field {
+    background: #0F2A22 !important;
+    border-color: #059669 !important;
+    color: #6EE7B7 !important;
+}
+
+/* ── Tables ───────────────────────────────────────────────────── */
+[data-bs-theme="dark"] .table-custom td {
+    border-color: #263447 !important;
+}
+
+/* ── Sidebar / topbar stay dark in both themes; just make sure
+   the active-semester footer keeps good contrast. ────────────── */
+[data-bs-theme="dark"] .active-semester {
+    background: rgba(0,0,0,0.3) !important;
+}
+
+/* ── Landing page hero is already dark; leave it. Light sections
+   below it get the same card treatment as everywhere else. ────── */
+[data-bs-theme="dark"] .feature-card,
+[data-bs-theme="dark"] .role-card {
+    border-color: #334155 !important;
+}
+[data-bs-theme="dark"] .section-how {
+    background: #0B1220 !important;
+}
+[data-bs-theme="dark"] .section-roles {
+    background: #0F172A !important;
+}
+[data-bs-theme="dark"] footer {
+    background: #0B1220 !important;
+}
+
+/* ── Transcript: keep the printed document itself light (like a
+   real sheet of paper) even in dark mode; only the page behind it
+   goes dark. ─────────────────────────────────────────────────── */
+[data-bs-theme="dark"] .transcript-wrapper {
+    background: #fff !important;
+    color: #1e293b !important;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.6) !important;
+}
+
+/* ── Scrollbar (cosmetic touch) ──────────────────────────────── */
+[data-bs-theme="dark"] .sidebar::-webkit-scrollbar,
+[data-bs-theme="dark"] .table-responsive::-webkit-scrollbar {
+    width: 8px; height: 8px;
+}
+[data-bs-theme="dark"] .sidebar::-webkit-scrollbar-thumb,
+[data-bs-theme="dark"] .table-responsive::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 8px;
+}
+
+/* ── Sidebar logout button (POST form styled as a nav link) ──────── */
+.nav-item-button {
+    background: none;
+    border: 0;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* ── Icon tiles (stat cards, landing-page features, role cards) ─────
+   Light mode uses pastel tiles with a coloured icon. In dark mode the
+   pastel would glare, so each tile becomes a dark tint of its own
+   accent colour (currentColor), and the icon keeps its colour — tile
+   contents are excluded from the text re-theme above. */
+[data-bs-theme="dark"] .icon-wrap,
+[data-bs-theme="dark"] .feature-icon-wrap,
+[data-bs-theme="dark"] .role-icon {
+    background: color-mix(in srgb, currentColor 16%, #1E293B) !important;
+    border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+}
+
+/* Icons whose light-mode colour is too dark to see on a dark surface. */
+[data-bs-theme="dark"] .bi[style*="#1A3A5C" i] { color: #7FB2E5 !important; }
+[data-bs-theme="dark"] .bi[style*="#333" i]    { color: #CBD5E1 !important; }
+[data-bs-theme="dark"] .bi[style*="#0D7377" i] { color: #3CC8CD !important; }
+[data-bs-theme="dark"] .bi[style*="#2563EB" i] { color: #60A5FA !important; }
+
+/* Navy text is unreadable on dark surfaces. The general re-theme skips
+   elements with Bootstrap text-* classes (e.g. "text-end"), so catch
+   any remaining inline navy text here. */
+[data-bs-theme="dark"] :not(.bi)[style*="color:#1A3A5C" i]:not([style*="background"]),
+[data-bs-theme="dark"] :not(.bi)[style*="color: #1A3A5C" i]:not([style*="background"]) {
+    color: #E2E8F0 !important;
+}

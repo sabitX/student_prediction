@@ -1,0 +1,166 @@
+/* ============================================================
+   SPTS — shared UI polish loaded on every page (after dark-mode.css).
+   Pages keep their own inline styles; this file only adds what every
+   page needs: responsive sidebar, focus states, submit feedback.
+   ============================================================ */
+
+/* ── Keyboard focus: always visible for keyboard users ─────────── */
+/* (Form fields keep Bootstrap's own focus ring.) */
+a:focus-visible,
+button:focus-visible,
+.nav-item:focus-visible {
+    outline: 3px solid #F59E0B;
+    outline-offset: 2px;
+}
+
+/* ── Layout safety ─────────────────────────────────────────────── */
+/* A flex child's default min-width is its content width, so one wide
+   table or chart would push the whole page wider than the screen. */
+.main-content { min-width: 0; }
+/* Auth pages centre a .container in a flex body; let it shrink to the
+   screen instead of growing to the card's max width. */
+body > .container { width: 100%; }
+
+/* Skip link: hidden until focused with the keyboard. */
+.skip-link {
+    position: absolute;
+    left: 8px;
+    top: -48px;
+    z-index: 3000;
+    background: #1A3A5C;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+}
+.skip-link:focus { top: 8px; color: #fff; }
+
+/* ── Submit feedback (set by app.js while a form is sending) ───── */
+button.is-submitting { opacity: 0.7; cursor: progress; }
+
+/* ── Mobile sidebar toggle (button injected by app.js) ──────────── */
+.sidebar-toggle {
+    display: none;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+.sidebar-backdrop { display: none; }
+
+@media (max-width: 991.98px) {
+    .sidebar-toggle { display: inline-flex; }
+
+    /* Closed: off-screen AND hidden, so its links can't be tabbed to. */
+    .sidebar {
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition: transform 0.2s ease, visibility 0s linear 0.2s;
+        z-index: 1045 !important;
+    }
+    body.sidebar-open .sidebar {
+        transform: translateX(0);
+        visibility: visible;
+        transition: transform 0.2s ease;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.25);
+    }
+    body.sidebar-open .sidebar-backdrop {
+        display: block;
+        position: fixed;
+        inset: 60px 0 0 0;
+        background: rgba(15,23,42,0.45);
+        z-index: 1040;
+    }
+
+    .main-content {
+        margin-left: 0 !important;
+        padding: 20px 16px !important;
+        max-width: 100vw;
+    }
+    .topbar { padding: 0 12px !important; }
+    .topbar .brand { font-size: 0.95rem !important; }
+    .page-header { flex-wrap: wrap; }
+}
+
+@media (max-width: 575.98px) {
+    /* Keep the topbar to one line on phones. */
+    .topbar .user-profile > span { display: none; }
+    .dashboard-card { padding: 18px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sidebar, .progress-bar { transition: none !important; }
+}
+
+/* ── Dark mode for the shared alert styles used by newer pages ─── */
+[data-bs-theme="dark"] .alert-ok  { background: #0F2A1D !important; border-color: #166534 !important; color: #BBF7D0 !important; }
+[data-bs-theme="dark"] .alert-bad { background: #2A1215 !important; border-color: #991B1B !important; color: #FECACA !important; }
+
+/* ── Print: never print navigation chrome ──────────────────────── */
+@media print {
+    .topbar, .sidebar, .sidebar-toggle, .theme-toggle, .skip-link { display: none !important; }
+    .main-content { margin: 0 !important; }
+}
+
+/* ── One-time notice toast (assets/js/app.js) ─────────────────────── */
+.spts-notice {
+    position: fixed;
+    top: 72px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3000;
+    width: min(460px, calc(100vw - 32px));
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-left: 4px solid #2563EB;
+    border-radius: 10px;
+    color: #1E3A8A;
+    font-size: 0.88rem;
+    box-shadow: 0 10px 30px rgba(26,58,92,0.15);
+    animation: spts-notice-in 0.25s ease-out;
+}
+.spts-notice > .bi { font-size: 1.15rem; line-height: 1.3; }
+.spts-notice-denied {
+    background: #FEF2F2;
+    border-color: #FECACA;
+    border-left-color: #DC2626;
+    color: #991B1B;
+}
+.spts-notice-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.spts-notice-close {
+    background: none;
+    border: none;
+    padding: 2px;
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+}
+.spts-notice-close:hover { opacity: 1; }
+.spts-notice.is-leaving { opacity: 0; transition: opacity 0.25s; }
+@keyframes spts-notice-in {
+    from { opacity: 0; transform: translate(-50%, -8px); }
+    to   { opacity: 1; transform: translate(-50%, 0); }
+}
+[data-bs-theme="dark"] .spts-notice {
+    background: #1E293B;
+    border-color: #334155;
+    border-left-color: #3B82F6;
+    color: #BFDBFE;
+}
+[data-bs-theme="dark"] .spts-notice-denied {
+    border-left-color: #EF4444;
+    color: #FECACA;
+}
+@media print { .spts-notice { display: none !important; } }
