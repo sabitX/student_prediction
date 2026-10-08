@@ -62,7 +62,7 @@ if (isset($_GET['get_marks']) && isset($_GET['subject_id'])) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="../assets/css/dark-mode.css" rel="stylesheet">
-    <link href="../assets/css/app.css" rel="stylesheet">
+    <link href="../assets/css/app.css?v=3" rel="stylesheet">
     <link rel="icon" href="../assets/images/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="../assets/images/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="../assets/images/apple-touch-icon.png">
@@ -474,7 +474,7 @@ if (isset($_GET['get_marks']) && isset($_GET['subject_id'])) {
 
 <script src="../assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js?v=2"></script>
+<script src="../assets/js/app.js?v=3"></script>
 <script>
 function loadExistingMarks(subjectId) {
     const aField = document.getElementById('c_assignment');

@@ -1,6 +1,7 @@
 // SPTS — shared behaviour for every page.
 //  • Prevents double submission of forms (double-clicks, impatient users).
 //  • Keeps pop-up dialogs (Bootstrap modals) clickable.
+//  • Labels table cells so tables read as cards on phones (app.css).
 //  • Adds a menu button that opens the sidebar on small screens.
 //  • Adds a "skip to content" link for keyboard users.
 //  • Shows a one-time notice (e.g. "Access denied") left by the server.
@@ -100,8 +101,65 @@
         setTimeout(dismiss, 7000);
     }
 
+    // ── Phone-friendly tables ────────────────────────────────────────
+    // Gives every cell of a table inside .table-responsive a data-label
+    // (its column heading). On phones app.css then shows each row as a
+    // card of "label: value" lines. Tables with .table-scroll are skipped.
+    function labelTables() {
+        document.querySelectorAll('.table-responsive > table:not(.table-scroll)').forEach(function (table) {
+            const head = table.tHead && table.tHead.rows[table.tHead.rows.length - 1];
+            if (!head) return;
+            const labels = [];
+            Array.from(head.cells).forEach(function (th) {
+                // innerText turns <br> into a break, so "Midterm<br>(30%)"
+                // becomes "Midterm (30%)" rather than "Midterm(30%)".
+                const text = (th.innerText || th.textContent).replace(/\s+/g, ' ').trim();
+                for (let i = 0; i < (th.colSpan || 1); i++) labels.push(text === '#' ? 'No.' : text);
+            });
+            table.classList.add('table-stack');
+            Array.from(table.tBodies).forEach(function (body) {
+                Array.from(body.rows).forEach(function (row) {
+                    let col = 0;
+                    Array.from(row.cells).forEach(function (cell) {
+                        if (!cell.hasAttribute('data-label')) {
+                            cell.setAttribute('data-label', cell.colSpan > 1 ? '' : (labels[col] || ''));
+                        }
+                        col += cell.colSpan || 1;
+                    });
+                });
+            });
+        });
+    }
+
+    // "SPTS — Nilai University" → "SPTS" + a part that narrow screens hide.
+    function splitBrand() {
+        document.querySelectorAll('.topbar .brand').forEach(function (brand) {
+            brand.childNodes.forEach(function (node) {
+                if (node.nodeType !== Node.TEXT_NODE || node.textContent.indexOf(' — ') === -1) return;
+                // One wrapper, so the brand's flex gap doesn't open up a
+                // space between "SPTS" and " — Nilai University".
+                const at = node.textContent.indexOf(' — ');
+                const wrap = document.createElement('span');
+                const long = document.createElement('span');
+                long.className = 'brand-long';
+                long.textContent = node.textContent.slice(at);
+                wrap.append(node.textContent.slice(0, at), long);
+                node.replaceWith(wrap);
+            });
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         showNotice();
+        splitBrand();
+        labelTables();
+        // Some pages add rows later (search results, live updates).
+        let queued = false;
+        new MutationObserver(function () {
+            if (queued) return;
+            queued = true;
+            requestAnimationFrame(function () { queued = false; labelTables(); });
+        }).observe(document.body, { childList: true, subtree: true });
 
         const main = document.querySelector('main, .main-content');
         if (main) {

@@ -217,7 +217,7 @@ if (isset($_POST['upload'])) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="../assets/css/dark-mode.css" rel="stylesheet">
-    <link href="../assets/css/app.css" rel="stylesheet">
+    <link href="../assets/css/app.css?v=3" rel="stylesheet">
     <link rel="icon" href="../assets/images/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="../assets/images/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="../assets/images/apple-touch-icon.png">
@@ -426,7 +426,7 @@ if (isset($_POST['upload'])) {
 
         <h6 class="fw-bold mb-3" style="font-size:0.85rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px;">Required File Format</h6>
         <div class="table-responsive">
-        <table class="table table-bordered mb-2" style="font-size:0.85rem;">
+        <table class="table table-bordered table-scroll mb-2" style="font-size:0.85rem;">
             <thead class="table-custom-header">
                 <tr>
                     <th class="ps-3">student_id</th>
@@ -596,7 +596,7 @@ if (isset($_POST['upload'])) {
 
 <script src="../assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js?v=2"></script>
+<script src="../assets/js/app.js?v=3"></script>
 <script>
 // Show selected file name
 function showFileName(input) {

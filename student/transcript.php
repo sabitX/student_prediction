@@ -101,12 +101,13 @@ function gpa_text($v) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Academic Transcript — <?php echo h($student['full_name']); ?></title>
     <script>(function(){try{if(localStorage.getItem('spts-theme')==='dark')document.documentElement.setAttribute('data-bs-theme','dark');}catch(e){}})();</script>
     <link href="../assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link href="../assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     <link href="../assets/css/dark-mode.css" rel="stylesheet">
-    <link href="../assets/css/app.css" rel="stylesheet">
+    <link href="../assets/css/app.css?v=3" rel="stylesheet">
     <link rel="icon" href="../assets/images/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="../assets/images/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="../assets/images/apple-touch-icon.png">
@@ -243,6 +244,23 @@ function gpa_text($v) {
             padding-top: 10px;
             border-top: 1px solid #CBD5E1;
             line-height: 1.4;
+        }
+
+        /* ── PHONES (screen only; printing keeps the A4 layout) ── */
+        @media screen and (max-width: 767.98px) {
+            .action-bar { padding: 10px 12px; }
+            .action-bar .btn-nav-primary { padding: 6px 12px !important; font-size: 0.85rem; }
+            .transcript-wrapper { margin: 12px; padding: 20px 16px; }
+            .header-branding img { height: 48px; }
+            .info-table > tbody > tr > td,
+            .info-table > tr > td { display: block; }
+            .print-date { text-align: left; padding-top: 6px !important; }
+            .info-label { width: 105px; }
+            .prog-label { width: 110px; }
+            /* The course table keeps its columns and scrolls sideways. */
+            .courses-table { display: block; overflow-x: auto; white-space: nowrap; }
+            .courses-table tbody td.left { white-space: normal; min-width: 160px; }
+            .summary-table { width: 100%; }
         }
 
         /* ── PRINT STYLES ── */
@@ -466,6 +484,6 @@ function gpa_text($v) {
 
 <script src="../assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js?v=2"></script>
+<script src="../assets/js/app.js?v=3"></script>
 </body>
 </html>

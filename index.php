@@ -24,7 +24,7 @@ if (isset($_SESSION['user_id'])) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="assets/css/dark-mode.css" rel="stylesheet">
-    <link href="assets/css/app.css" rel="stylesheet">
+    <link href="assets/css/app.css?v=3" rel="stylesheet">
     <link rel="icon" href="assets/images/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="assets/images/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="assets/images/apple-touch-icon.png">
@@ -82,7 +82,7 @@ if (isset($_SESSION['user_id'])) {
         letter-spacing: 0.3px;
     }
 
-    .top-nav .brand span {
+    .top-nav .brand span span {
         color: #D4A017;
     }
 
@@ -409,6 +409,13 @@ if (isset($_SESSION['user_id'])) {
         .hero-mockup-img { transform: none; max-width: 100%; }
         .hero-cta { flex-direction: column; }
         .hero-cta a { text-align: center; justify-content: center; }
+        .top-nav { padding: 0 14px; }
+        .top-nav .brand { white-space: nowrap; }
+        .top-nav .nav-links { gap: 8px; align-items: center; }
+        .top-nav .nav-links a { padding: 6px 12px; white-space: nowrap; }
+    }
+    @media (max-width: 479.98px) {
+        .top-nav .brand-long { display: none; }
     }
 </style>
 </head>
@@ -422,7 +429,7 @@ if (isset($_SESSION['user_id'])) {
 <nav class="top-nav">
     <div class="brand">
         <i class="bi bi-mortarboard-fill me-2"></i>
-        SPTS — <span>Nilai University</span>
+        SPTS<span class="brand-long"> — <span>Nilai University</span></span>
     </div>
     <div class="nav-links">
         <button type="button" class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
@@ -625,6 +632,6 @@ if (isset($_SESSION['user_id'])) {
 
 <script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="assets/js/theme-toggle.js"></script>
-<script src="assets/js/app.js?v=2"></script>
+<script src="assets/js/app.js?v=3"></script>
 </body>
 </html>

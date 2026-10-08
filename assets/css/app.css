@@ -36,6 +36,15 @@ body > .container { width: 100%; }
 }
 .skip-link:focus { top: 8px; color: #fff; }
 
+/* ── Main action button ────────────────────────────────────────── */
+/* Default look for .btn-primary-custom. Some pages (e.g. Students, and
+   the onboarding dialog on dashboards) use the class without defining
+   it, which left their main button looking like plain text. Pages that
+   define their own version still win: their inline styles load later. */
+.btn-primary-custom { background: #0D7377; border: 2px solid #0D7377; color: #fff; font-weight: 600; }
+.btn-primary-custom:hover,
+.btn-primary-custom:focus { background: #0a5e62; border-color: #0a5e62; color: #fff; }
+
 /* ── Submit feedback (set by app.js while a form is sending) ───── */
 button.is-submitting { opacity: 0.7; cursor: progress; }
 
@@ -94,6 +103,128 @@ button.is-submitting { opacity: 0.7; cursor: progress; }
     /* Keep the topbar to one line on phones. */
     .topbar .user-profile > span { display: none; }
     .dashboard-card { padding: 18px !important; }
+}
+
+/* ── Phones ────────────────────────────────────────────────────────── */
+@media (max-width: 767.98px) {
+    /* iOS zooms into any field whose text is under 16px when it's tapped. */
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+    select,
+    textarea {
+        font-size: 16px !important;
+    }
+
+    /* Stat cards two to a row instead of one long column. */
+    .row > [class*="col-"]:has(> .stat-card) { flex: 0 0 auto; width: 50%; }
+}
+
+/* ── Phones and tablets (same breakpoint as the slide-out sidebar) ─── */
+@media (max-width: 991.98px) {
+    /* Topbar title on one line; app.js wraps " — Nilai University" in
+       .brand-long so it can be dropped on the narrowest screens. */
+    .topbar .brand { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .topbar .user-profile { flex-shrink: 0; }
+
+    /* Side-by-side page panels (form | list, calculator | results) stack
+       full-width: at tablet size the narrow side became too cramped.
+       Mentor cards keep their own grid. */
+    .main-content .row > :is(.col-md-4, .col-md-5, .col-md-7, .col-md-8):not(:has(> .mentor-card)) {
+        flex: 0 0 auto;
+        width: 100%;
+    }
+
+    /* ── Tables become a stack of cards ───────────────────────────────
+       app.js adds .table-stack and a data-label (the column heading) to
+       every cell of tables inside .table-responsive. Each row turns into a
+       card; each cell shows its label on the left and its content on the
+       right, so nothing is cut off or needs sideways scrolling. Add
+       .table-scroll to a table to keep it as a scrolling grid instead. */
+    .table-stack > thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+    .table-stack,
+    .table-stack > tbody { display: block; width: 100%; }
+    .table-stack > tbody > tr {
+        display: block;
+        border: 1px solid var(--bs-border-color, #E2E8F0);
+        border-radius: 12px;
+        padding: 4px 14px;
+        margin-bottom: 12px;
+        overflow: hidden;
+    }
+    .table-stack {
+        --label: 30%;         /* label column share of the cell */
+        --label-k: 0.4286;    /* --label / (1 - --label), see ::before */
+    }
+    .table-stack > tbody > tr > td {
+        display: flow-root;   /* grows to fit the floated label below */
+        padding: 9px 0 9px var(--label) !important;
+        border: 0 !important;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2) !important;
+        text-align: left !important;
+        white-space: normal !important;
+        word-break: break-word;
+        width: auto !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    .table-stack > tbody > tr > td:last-child { border-bottom: 0 !important; }
+    /* The label floats into the cell's left padding. Percentages here are
+       of the content box (what's left after the padding), hence --label-k:
+       e.g. 40% of the cell = 66.667% of the remaining 60%. Being a float,
+       it makes the cell tall enough for a label that wraps onto two lines
+       next to a one-line value. */
+    .table-stack > tbody > tr > td::before {
+        content: attr(data-label);
+        float: left;
+        margin-left: calc(-100% * var(--label-k));
+        width: calc(100% * var(--label-k) - 12px);
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        line-height: 1.5;
+        color: #64748B;
+    }
+    /* Cells with no heading (and "nothing here" rows) use the full width. */
+    .table-stack > tbody > tr > td[data-label=""] { padding-left: 0 !important; text-align: center !important; }
+    .table-stack > tbody > tr > td[data-label=""]::before { content: none; }
+    /* Action cells: buttons get the full card width, label above them,
+       and wrap onto more lines instead of squeezing their text. */
+    .table-stack > tbody > tr > td:has(.btn) { padding-left: 0 !important; }
+    .table-stack > tbody > tr > td:has(.btn)::before {
+        float: none;
+        display: block;
+        width: auto;
+        margin: 0 0 6px;
+    }
+    .table-stack > tbody > tr > td .d-flex { flex-wrap: wrap; justify-content: flex-start !important; }
+    .table-stack > tbody > tr > td .btn { white-space: nowrap; margin-top: 2px; margin-bottom: 2px; }
+    [data-bs-theme="dark"] .table-stack > tbody > tr > td::before { color: #94A3B8; }
+}
+
+@media (min-width: 576px) and (max-width: 991.98px) {
+    /* Edge-to-edge (p-0) panels: keep row cards off the panel edges.
+       (On phones .dashboard-card already gets padding, above.) */
+    .dashboard-card.p-0 .table-responsive:has(> .table-stack) { padding: 0 16px 4px; }
+}
+
+@media (max-width: 575.98px) {
+    /* Phones: a wider label column, since the cards are narrow. */
+    .table-stack { --label: 40%; --label-k: 0.6667; }
+
+    /* Sign-in pages: room above the card for the fixed dark-mode button,
+       which otherwise sits on the card's corner. */
+    body:has(> .theme-toggle-floating) { padding-top: 64px !important; }
+}
+
+@media (max-width: 419.98px) {
+    .topbar .brand-long { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
