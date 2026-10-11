@@ -26,25 +26,37 @@ function predicted_status($total_score) {
     return 'Fail';
 }
 
-// Bootstrap badge color name for a given status (used with bg-<name>).
+// CSS classes for a status badge: a soft tint with dark text, defined in
+// assets/css/app.css (.badge-status-*): echo it into a span's class.
 function status_badge_class($status) {
-    return match ($status) {
-        'Excellent' => 'success',
-        'Pass'      => 'primary',
-        'At Risk'   => 'warning',
-        'Fail'      => 'danger',
-        default     => 'secondary',
+    return 'badge-status badge-status-' . match ($status) {
+        'Excellent' => 'excellent',
+        'Pass'      => 'pass',
+        'At Risk'   => 'risk',
+        'Fail'      => 'fail',
+        default     => 'pending',
     };
 }
 
-// Hex color for chart contexts (Chart.js, etc.) that need a raw color value.
-function status_hex_color($status) {
+// Hex color for charts and progress bars: a muted semantic palette (deep
+// emerald / slate blue / ochre / brick), each at least 3:1 against white.
+// $dark: lighter versions with 3:1+ against the dark-mode card (#1E293B).
+function status_hex_color($status, $dark = false) {
     return match ($status) {
-        'Excellent' => '#198754',
-        'Pass'      => '#2563EB',
-        'At Risk'   => '#F59E0B',
-        'Fail'      => '#DC2626',
-        default     => '#64748B',
+        'Excellent' => $dark ? '#4FA67E' : '#2F7D5B',
+        'Pass'      => $dark ? '#7FA3CC' : '#4F79A8',
+        'At Risk'   => $dark ? '#D2A24E' : '#B8862E',
+        'Fail'      => $dark ? '#D27575' : '#B04A4A',
+        default     => $dark ? '#64748B' : '#94A3B8',
     };
+}
+
+// The whole palette, keyed by status, for charts drawn in JavaScript.
+function status_palette($dark = false) {
+    $palette = [];
+    foreach (['Excellent', 'Pass', 'At Risk', 'Fail'] as $status) {
+        $palette[$status] = status_hex_color($status, $dark);
+    }
+    return $palette;
 }
 ?>

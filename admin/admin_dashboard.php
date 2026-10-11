@@ -41,12 +41,12 @@ $subject_chart = mysqli_query($conn, "SELECT sub.subject_name, AVG(pr.total_scor
                                        ORDER BY sub.subject_code");
 $subject_labels = [];
 $subject_scores = [];
-$subject_colors = [];
+$subject_statuses = [];   // coloured in the chart script (light/dark palette)
 while ($row = mysqli_fetch_assoc($subject_chart)) {
     $subject_labels[] = $row['subject_name'];
     $avg = round($row['avg_score'], 2);
     $subject_scores[] = $avg;
-    $subject_colors[] = status_hex_color(predicted_status($avg));
+    $subject_statuses[] = predicted_status($avg);
 }
 
 // Per-student summary for the active semester, one page at a time (see
@@ -95,27 +95,21 @@ $page_styles     = <<<'CSS'
         /* ── Dashboard Cards & Stat Blocks ──────────────────────────────── */
         .dashboard-card {
             background: #fff;
-            border: none;
             border-radius: 16px;
             padding: 28px;
-            box-shadow: 0 8px 32px rgba(26,58,92,0.05), 0 2px 8px rgba(26,58,92,0.02);
+            box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border);
             height: 100%;
         }
 
         .stat-card {
             background: #fff;
-            border: none;
             border-radius: 16px;
             padding: 22px 24px;
-            box-shadow: 0 8px 24px rgba(26,58,92,0.04), 0 2px 6px rgba(26,58,92,0.02);
+            box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border);
             height: 100%;
             position: relative;
             overflow: hidden;
-            transition: transform 0.25s ease, box-shadow 0.25s ease;
-        }
-        .stat-card:hover { 
-            transform: translateY(-4px); 
-            box-shadow: 0 12px 32px rgba(13,115,119,0.08), 0 4px 12px rgba(13,115,119,0.04);
+            
         }
         .stat-card h2 { font-size: 2.1rem; font-weight: 800; color: #1A3A5C; margin: 6px 0 2px; line-height: 1; letter-spacing: -0.5px; }
         .stat-card p  { margin: 0; font-size: 0.82rem; color: #64748B; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -263,11 +257,9 @@ require '../includes/page_start.php';
                         <?php
                         $avg =$row['avg_score'];
                         $badge = status_badge_class(predicted_status($avg));
-                        $badge_text = ($badge === 'warning') ? 'text-dark' : 'text-white';
-
                         echo $avg !== null
-                            ? '<span class="badge bg-'.$badge.' '.$badge_text.' px-2 py-1" style="font-weight:600;">'.number_format($avg,2).'%</span>'
-                            : '<span class="text-muted" style="font-size:0.8rem;">Pending</span>';
+                            ? '<span class="'.$badge.'">'.number_format($avg,2).'%</span>'
+                            : '<span class="'.status_badge_class(null).'">Pending</span>';
                         ?>
                     </td>
                     <td class="text-center pe-4">
@@ -295,6 +287,14 @@ const sptsDark = document.documentElement.getAttribute('data-bs-theme') === 'dar
 const sptsHeadingColor = sptsDark ? '#E2E8F0' : '#1A3A5C';
 const sptsMutedColor   = sptsDark ? '#94A3B8' : '#64748B';
 const sptsGridColor    = sptsDark ? '#263447' : '#F1F5F9';
+const sptsCardColor    = sptsDark ? '#1E293B' : '#FFFFFF';
+// Charts may draw before the Inter web font loads: give a fallback so
+// labels never drop to the browser's serif default.
+Chart.defaults.font.family = "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif";
+// Muted status palette (includes/grading.php), lighter in dark mode.
+const sptsStatusColors = sptsDark
+    ? <?php echo json_encode(status_palette(true)); ?>
+    : <?php echo json_encode(status_palette(false)); ?>;
 
 // Doughnut chart with center total
 <?php if ($total_assessments > 0): ?>
@@ -324,16 +324,18 @@ new Chart(pieCtx, {
         labels: ['Excellent', 'Pass', 'At Risk', 'Fail'],
         datasets: [{
             data: [<?php echo $excellent; ?>, <?php echo$pass; ?>, <?php echo $at_risk; ?>, <?php echo$fail; ?>],
-            backgroundColor: ['#198754', '#2563EB', '#F59E0B', '#DC2626'],
-            borderWidth: 0,
+            backgroundColor: ['Excellent', 'Pass', 'At Risk', 'Fail'].map(s => sptsStatusColors[s]),
+            // Thin gaps in the card colour separate the segments.
+            borderWidth: 2,
+            borderColor: sptsCardColor,
             hoverOffset: 4
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '72%',
-        plugins: { legend: { position: 'bottom', labels: { color: sptsMutedColor, font: { family: 'Inter', size: 11 }, padding: 20, usePointStyle: true } } }
+        cutout: '78%',   // a slimmer ring
+        plugins: { legend: { position: 'bottom', labels: { color: sptsMutedColor, font: { size: 11 }, padding: 20, usePointStyle: true } } }
     },
     plugins: [centerTextPlugin]
 });
@@ -349,7 +351,7 @@ new Chart(barCtx, {
         datasets: [{
             label: 'Average Score (%)',
             data: <?php echo json_encode($subject_scores, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
-            backgroundColor: <?php echo json_encode($subject_colors, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
+            backgroundColor: <?php echo json_encode($subject_statuses, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>.map(s => sptsStatusColors[s]),
             borderRadius: 6,
             borderWidth: 0,
             barThickness: 60
@@ -361,12 +363,12 @@ new Chart(barCtx, {
         scales: {
             y: {
                 beginAtZero: true, max: 100,
-                ticks: { callback: val => val + '%', font: { family: 'Inter', size: 11 }, color: sptsMutedColor },
+                ticks: { callback: val => val + '%', font: { size: 11 }, color: sptsMutedColor },
                 grid: { color: sptsGridColor, drawBorder: false }
             },
             x: {
                 grid: { display: false },
-                ticks: { font: { family: 'Inter', size: 11 }, color: sptsMutedColor }
+                ticks: { font: { size: 11 }, color: sptsMutedColor }
             }
         },
         plugins: {

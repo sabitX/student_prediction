@@ -186,9 +186,13 @@
         toggle.innerHTML = '<i class="bi bi-list" aria-hidden="true"></i>';
         brand.parentNode.insertBefore(toggle, brand);
 
+        // Next to the sidebar, not in <body>: .layout-wrapper has its own
+        // z-index, so a backdrop outside it covered the open sidebar and
+        // swallowed taps on its links. In the same stacking context the
+        // sidebar (z 1045) sits above the backdrop (z 1040).
         const backdrop = document.createElement('div');
         backdrop.className = 'sidebar-backdrop';
-        document.body.appendChild(backdrop);
+        sidebar.parentNode.insertBefore(backdrop, sidebar);
 
         function setOpen(open) {
             document.body.classList.toggle('sidebar-open', open);

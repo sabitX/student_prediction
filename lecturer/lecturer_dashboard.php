@@ -111,7 +111,7 @@ $page_styles     = <<<'CSS'
         .badge-semester { background: #0D7377; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
 
         /* Stat Cards */
-        .stat-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(26,58,92,0.04); display: flex; flex-direction: column; justify-content: center; height: 100%; position: relative; overflow: hidden; }
+        .stat-card { background: white; border-radius: 12px; padding: 20px; box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border); display: flex; flex-direction: column; justify-content: center; height: 100%; position: relative; overflow: hidden; }
         .stat-card h3 { font-size: 1.8rem; font-weight: 700; margin: 0 0 4px; line-height: 1; }
         .stat-card p { font-size: 0.8rem; font-weight: 600; color: #1A3A5C; margin: 0; text-transform: uppercase; }
         .stat-card small { font-size: 0.75rem; color: #94A3B8; }
@@ -127,7 +127,7 @@ $page_styles     = <<<'CSS'
         .text-red { color: #EF4444; }
 
         /* Dashboard Cards */
-        .dashboard-card { background: white; border-radius: 16px; padding: 28px; box-shadow: 0 8px 32px rgba(26,58,92,0.05); margin-bottom: 24px; }
+        .dashboard-card { background: white; border-radius: 16px; padding: 28px; box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border); margin-bottom: 24px; }
 
         /* Action Buttons */
         .btn-action { font-size: 0.75rem; font-weight: 600; padding: 4px 12px; border-radius: 6px; border: none; transition: all 0.2s; }

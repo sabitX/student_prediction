@@ -190,10 +190,9 @@ $page_styles     = <<<'CSS'
         /* ── Dashboard Cards & Forms (Softened Edges) ───────────────────── */
         .dashboard-card {
             background: #fff;
-            border: none;
             border-radius: 16px;
             padding: 28px;
-            box-shadow: 0 8px 32px rgba(26,58,92,0.05), 0 2px 8px rgba(26,58,92,0.02);
+            box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border);
             height: 100%;
         }
 

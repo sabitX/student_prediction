@@ -4,12 +4,27 @@
    page needs: responsive sidebar, focus states, submit feedback.
    ============================================================ */
 
+/* ── Shared design tokens ──────────────────────────────────────── */
+/* Cards sit flat on the canvas: a hairline border and a barely-there
+   shadow, rather than floating. Pages use these in their card rules. */
+:root {
+    --spts-card-border: #E6EBF1;
+    --spts-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    --spts-focus: #0D7377;
+}
+[data-bs-theme="dark"] {
+    --spts-card-border: #2A3A50;
+    --spts-card-shadow: none;
+    --spts-focus: #3CC8CD;
+}
+
 /* ── Keyboard focus: always visible for keyboard users ─────────── */
-/* (Form fields keep Bootstrap's own focus ring.) */
+/* (Form fields keep Bootstrap's own focus ring.) Brand teal, which
+   keeps 3:1+ contrast on both the light chrome and the white cards. */
 a:focus-visible,
 button:focus-visible,
 .nav-item:focus-visible {
-    outline: 3px solid #F59E0B;
+    outline: 3px solid var(--spts-focus);
     outline-offset: 2px;
 }
 
@@ -51,9 +66,9 @@ button.is-submitting { opacity: 0.7; cursor: progress; }
 /* ── Mobile sidebar toggle (button injected by app.js) ──────────── */
 .sidebar-toggle {
     display: none;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.25);
-    color: #fff;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    color: #1A3A5C;
     width: 36px;
     height: 36px;
     border-radius: 8px;
@@ -63,6 +78,8 @@ button.is-submitting { opacity: 0.7; cursor: progress; }
     margin-right: 10px;
     flex-shrink: 0;
 }
+.sidebar-toggle:hover { background: #F1F5F9; }
+[data-bs-theme="dark"] .sidebar-toggle { background: #0F172A; border-color: #334155; color: #E2E8F0; }
 .sidebar-backdrop { display: none; }
 
 @media (max-width: 991.98px) {
@@ -103,7 +120,44 @@ button.is-submitting { opacity: 0.7; cursor: progress; }
     /* Keep the topbar to one line on phones. */
     .topbar .user-profile > span { display: none; }
     .dashboard-card { padding: 18px !important; }
+    /* Brand: logo + "SPTS" only; the subtitle needs more room. (.topbar
+       prefix: page_start.php's own brand rules come later.) */
+    .topbar .brand-name small { display: none; }
+    .topbar .brand-logo { height: 30px; }
 }
+@media (max-width: 359.98px) {
+    .topbar .brand-divider, .topbar .brand-name { display: none; }
+}
+
+/* Dark mode: Bootstrap's .text-dark (e.g. student names in the roster)
+   stays near-black and disappears on dark cards. Badges and tinted
+   backgrounds keep their dark text. */
+[data-bs-theme="dark"] .main-content .text-dark:not(.badge):not([class*="bg-"]) {
+    color: #E2E8F0 !important;
+}
+
+/* ── Status badges: soft tint + dark text ───────────────────────────
+   includes/grading.php status_badge_class() returns one of these.
+   Every pair keeps at least 5.5:1 text contrast (WCAG AA). */
+.badge-status {
+    display: inline-block;
+    padding: 0.3em 0.65em;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.78em;
+    line-height: 1.2;
+}
+.badge-status-excellent { background: #E3F2EA; color: #1D6B46; border-color: #C4E3D1; }
+.badge-status-pass      { background: #E5EEF8; color: #1F4F86; border-color: #C9DAEE; }
+.badge-status-risk      { background: #FBF0DC; color: #8A5508; border-color: #F0DDB4; }
+.badge-status-fail      { background: #F9E5E5; color: #9B2C2C; border-color: #EECACA; }
+.badge-status-pending   { background: #EEF2F6; color: #475569; border-color: #DCE3EB; }
+[data-bs-theme="dark"] .badge-status-excellent { background: #12301F; color: #8FD3AE; border-color: #1E4D33; }
+[data-bs-theme="dark"] .badge-status-pass      { background: #142640; color: #9EC2EC; border-color: #213D63; }
+[data-bs-theme="dark"] .badge-status-risk      { background: #33260D; color: #E8C27A; border-color: #4F3A13; }
+[data-bs-theme="dark"] .badge-status-fail      { background: #361717; color: #F0A3A3; border-color: #552323; }
+[data-bs-theme="dark"] .badge-status-pending   { background: #1E293B; color: #CBD5E1; border-color: #334155; }
 
 /* ── Phones ────────────────────────────────────────────────────────── */
 @media (max-width: 767.98px) {

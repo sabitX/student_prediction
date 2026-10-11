@@ -194,10 +194,9 @@ $page_styles     = <<<'CSS'
         /* ── Dashboard Cards & Tables ───────────────────────────────────── */
         .dashboard-card {
             background: #fff;
-            border: 1px solid #E2E8F0;
             border-radius: 12px;
             padding: 24px;
-            box-shadow: 0 4px 24px rgba(26,58,92,0.04);
+            box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border);
             margin-bottom: 24px;
         }
 

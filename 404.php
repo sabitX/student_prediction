@@ -24,7 +24,7 @@ http_response_code(404);
     <title>Page Not Found | SPTS Nilai University</title>
     <script>(function(){try{if(localStorage.getItem('spts-theme')==='dark')document.documentElement.setAttribute('data-bs-theme','dark');}catch(e){}})();</script>
     <link href="<?php echo htmlspecialchars($base); ?>/assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
-    <link href="<?php echo htmlspecialchars($base); ?>/assets/css/dark-mode.css" rel="stylesheet">
+    <link href="<?php echo htmlspecialchars($base); ?>/assets/css/dark-mode.css?v=4" rel="stylesheet">
     <link rel="icon" href="<?php echo htmlspecialchars($base); ?>/assets/images/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="<?php echo htmlspecialchars($base); ?>/assets/images/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="<?php echo htmlspecialchars($base); ?>/assets/images/apple-touch-icon.png">

@@ -265,10 +265,9 @@ $page_styles     = <<<'CSS'
         /* ── Dashboard Cards & Forms ────────────────────────────────────── */
         .dashboard-card {
             background: #fff;
-            border: none;
             border-radius: 16px;
             padding: 28px;
-            box-shadow: 0 8px 32px rgba(26,58,92,0.05), 0 2px 8px rgba(26,58,92,0.02);
+            box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border);
             height: 100%;
         }
 
@@ -438,11 +437,9 @@ require '../includes/page_start.php';
                         <?php
                         $avg = $row['avg_score'];
                         $badge = status_badge_class(predicted_status($avg));
-                        $badge_text = ($badge === 'warning') ? 'text-dark' : 'text-white';
-
                         echo $avg !== null
-                            ? '<span class="badge bg-'.$badge.' '.$badge_text.' px-2 py-1" style="font-weight:600;">'.number_format($avg,2).'%</span>'
-                            : '<span class="text-muted" style="font-size:0.8rem;">Pending</span>';
+                            ? '<span class="'.$badge.'">'.number_format($avg,2).'%</span>'
+                            : '<span class="'.status_badge_class(null).'">Pending</span>';
                         ?>
                     </td>
                     <td class="text-center">

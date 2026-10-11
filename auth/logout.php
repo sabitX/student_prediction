@@ -32,8 +32,8 @@ if (!isset($_SESSION['user_id'])) {
     <title>Log Out | SPTS Nilai University</title>
     <script>(function(){try{if(localStorage.getItem('spts-theme')==='dark')document.documentElement.setAttribute('data-bs-theme','dark');}catch(e){}})();</script>
     <link href="../assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
-    <link href="../assets/css/dark-mode.css" rel="stylesheet">
-    <link href="../assets/css/app.css?v=3" rel="stylesheet">
+    <link href="../assets/css/dark-mode.css?v=4" rel="stylesheet">
+    <link href="../assets/css/app.css?v=4" rel="stylesheet">
     <link rel="icon" href="../assets/images/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="../assets/images/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="../assets/images/apple-touch-icon.png">

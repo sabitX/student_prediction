@@ -48,7 +48,7 @@ $page_styles     = <<<'CSS'
         .badge-semester { background: #0D7377; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
 
         /* Dashboard Cards */
-        .dashboard-card { background: white; border-radius: 16px; padding: 28px; box-shadow: 0 8px 32px rgba(26,58,92,0.05); margin-bottom: 24px; }
+        .dashboard-card { background: white; border-radius: 16px; padding: 28px; box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border); margin-bottom: 24px; }
 
         .action-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-block; background: #E0F2FE; color: #0369A1; }
         /* Shared rules this page does not use (keeps its original look). */

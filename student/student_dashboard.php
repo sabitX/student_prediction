@@ -2,6 +2,7 @@
 require '../includes/session_check.php';
 require '../config/config.php';
 require '../includes/semester.php';
+require '../includes/grading.php';
 
 $user_id = $_SESSION['user_id'];
 
@@ -77,10 +78,9 @@ $page_styles     = <<<'CSS'
         /* ── Dashboard Cards ────────────────────────────────────────────── */
         .dashboard-card {
             background: #fff;
-            border: 1px solid #E2E8F0;
             border-radius: 12px;
             padding: 24px;
-            box-shadow: 0 4px 24px rgba(26,58,92,0.04);
+            box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border);
             height: 100%;
         }
 
@@ -97,19 +97,13 @@ $page_styles     = <<<'CSS'
         /* ── Stat Cards ─────────────────────────────────────────────────── */
         .stat-card {
             background: #fff;
-            border: 1px solid #E2E8F0;
             border-radius: 12px;
             padding: 20px;
             text-align: center;
-            box-shadow: 0 4px 20px rgba(26,58,92,0.03);
+            box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border);
             height: 100%;
-            transition: transform 0.2s;
         }
 
-        .stat-card:hover {
-            transform: translateY(-2px);
-            border-color: #0D7377;
-        }
 
         .icon-wrap {
             width: 48px;
@@ -254,25 +248,9 @@ require '../includes/page_start.php';
                     $score  = (float)$row['total_score'];
                     $status = $row['predicted_status'] ?? 'Pending';
                     
-                    // Badge Styling
-                    $badge  = match($status) {
-                        'Excellent' => 'success',
-                        'Pass'      => 'primary',
-                        'At Risk'   => 'warning',
-                        'Fail'      => 'danger',
-                        default     => 'secondary'
-                    };
-                    $badge_text = match($status) {
-                        'At Risk' => 'text-dark',
-                        default   => 'text-white'
-                    };
-                    $bar_color = match($status) {
-                        'Excellent' => '#198754',
-                        'Pass'      => '#2563EB',
-                        'At Risk'   => '#F59E0B',
-                        'Fail'      => '#DC2626',
-                        default     => '#64748B'
-                    };
+                    // Soft status badge and muted bar colour (includes/grading.php)
+                    $badge     = status_badge_class($status);
+                    $bar_color = status_hex_color($status);
                 ?>
                 <tr>
                     <td class="ps-4">
@@ -298,7 +276,7 @@ require '../includes/page_start.php';
                         </div>
                     </td>
                     <td class="text-center pe-4">
-                        <span class="badge bg-<?php echo $badge; ?> <?php echo $badge_text; ?> px-2 py-1" style="font-weight:600; letter-spacing:0.3px;">
+                        <span class="<?php echo $badge; ?>">
                             <?php echo h($status); ?>
                         </span>
                     </td>

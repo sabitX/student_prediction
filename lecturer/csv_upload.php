@@ -418,14 +418,7 @@ require '../includes/page_start.php';
                 </thead>
                 <tbody>
                     <?php foreach ($success_rows as $r):
-                        $badge = match($r['status']) {
-                            'Excellent' => 'success',
-                            'Pass'      => 'primary',
-                            'At Risk'   => 'warning',
-                            'Fail'      => 'danger',
-                            default     => 'secondary'
-                        };
-                        $badge_text = ($r['status'] == 'At Risk') ? 'text-dark' : 'text-white';
+                        $badge = status_badge_class($r['status']);
                     ?>
                     <tr>
                         <td class="ps-4 fw-bold" style="color:#1A3A5C;"><?php echo h($r['student_id']); ?></td>
@@ -435,7 +428,7 @@ require '../includes/page_start.php';
                         <?php endforeach; ?>
                         <td class="text-center fw-bold" style="color:#1A3A5C;"><?php echo $r['total_score'] === null ? '—' : $r['total_score'] . '%'; ?></td>
                         <td class="text-center pe-4">
-                            <span class="badge bg-<?php echo $badge; ?> <?php echo $badge_text; ?> px-2 py-1" style="font-weight:600;"><?php echo h($r['status']); ?></span>
+                            <span class="<?php echo $badge; ?>"><?php echo h($r['status']); ?></span>
                         </td>
                     </tr>
                     <?php endforeach; ?>

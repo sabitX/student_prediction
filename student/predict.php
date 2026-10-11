@@ -2,6 +2,7 @@
 require '../includes/session_check.php';
 require '../config/config.php';
 require '../includes/semester.php';
+require '../includes/grading.php';
 
 $user_id =$_SESSION['user_id'];
 
@@ -61,10 +62,9 @@ $page_styles     = <<<'CSS'
         /* ── Dashboard Cards & Tables ───────────────────────────────────── */
         .dashboard-card {
             background: #fff;
-            border: 1px solid #E2E8F0;
             border-radius: 12px;
             padding: 24px;
-            box-shadow: 0 4px 24px rgba(26,58,92,0.04);
+            box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border);
             /* Removed height: 100% to fix the stretching bug */
         }
 
@@ -324,14 +324,7 @@ require '../includes/page_start.php';
                 <tbody>
                     <?php while ($row = mysqli_fetch_assoc($official)):
                         $status =$row['predicted_status'] ?? 'Pending';
-                        $badge  = match($status) {
-                            'Excellent' => 'success',
-                            'Pass'      => 'primary',
-                            'At Risk'   => 'warning',
-                            'Fail'      => 'danger',
-                            default     => 'secondary'
-                        };
-                        $badge_text =$status === 'At Risk' ? 'text-dark' : 'text-white';
+                        $badge = status_badge_class($status);
                     ?>
                     <tr>
                         <td class="ps-4 py-3 border-bottom-0">
@@ -341,7 +334,7 @@ require '../includes/page_start.php';
                             <?php echo $row['total_score'] !== null ? number_format($row['total_score'],1).'%' : '—'; ?>
                         </td>
                         <td class="text-center pe-4 border-bottom-0">
-                            <span class="badge bg-<?php echo $badge; ?> <?php echo$badge_text; ?> px-2 py-1">
+                            <span class="<?php echo $badge; ?>">
                                 <?php echo h($status); ?>
                             </span>
                         </td>

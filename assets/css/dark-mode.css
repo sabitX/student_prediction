@@ -142,11 +142,47 @@
     border-color: #263447 !important;
 }
 
-/* ── Sidebar / topbar stay dark in both themes; just make sure
-   the active-semester footer keeps good contrast. ────────────── */
-[data-bs-theme="dark"] .active-semester {
-    background: rgba(0,0,0,0.3) !important;
+/* ── Topbar + sidebar: light in light mode (includes/page_start.php),
+   dark slate here, with the same teal accents (lightened for contrast). */
+[data-bs-theme="dark"] .topbar {
+    background: #111A2B;
+    border-bottom-color: #1F2B3D;
+    color: #E2E8F0;
 }
+[data-bs-theme="dark"] .topbar .brand,
+[data-bs-theme="dark"] .brand-name { color: #E2E8F0; }
+[data-bs-theme="dark"] .brand-name small { color: #94A3B8; }
+[data-bs-theme="dark"] .brand-divider { background: #334155; }
+/* The logo's grey "UNIVERSITY" wordmark needs a light plate on dark. */
+[data-bs-theme="dark"] .brand-logo {
+    background: #FFFFFF;
+    border-radius: 6px;
+    padding: 3px 6px;
+    box-sizing: content-box;
+    height: 28px;
+}
+[data-bs-theme="dark"] .topbar .user-profile { color: #94A3B8; }
+[data-bs-theme="dark"] .topbar .theme-toggle { background: #0F172A; border-color: #334155; color: #E2E8F0; }
+[data-bs-theme="dark"] .topbar .theme-toggle:hover { background: #1E293B; }
+[data-bs-theme="dark"] .sidebar {
+    background: #111A2B;
+    border-right-color: #1F2B3D;
+}
+[data-bs-theme="dark"] .nav-item,
+[data-bs-theme="dark"] .nav-item .bi { color: #94A3B8; }
+[data-bs-theme="dark"] .nav-item:hover,
+[data-bs-theme="dark"] .nav-item:hover .bi { color: #5FD4D8; background: rgba(60, 200, 205, 0.08); }
+[data-bs-theme="dark"] .nav-item.active,
+[data-bs-theme="dark"] .nav-item.active .bi { color: #5FD4D8; }
+[data-bs-theme="dark"] .nav-item.active { background: rgba(60, 200, 205, 0.12); border-left-color: #3CC8CD; }
+[data-bs-theme="dark"] .nav-item-logout,
+[data-bs-theme="dark"] .nav-item-logout .bi { color: #F28B82; }
+[data-bs-theme="dark"] .nav-item-logout:hover { background: rgba(242, 139, 130, 0.08); }
+[data-bs-theme="dark"] .active-semester {
+    background: #0B1220 !important;
+    border-top-color: #1F2B3D;
+}
+[data-bs-theme="dark"] .active-semester h6 { color: #E2E8F0; }
 
 /* ── Landing page hero is already dark; leave it. Light sections
    below it get the same card treatment as everywhere else. ────── */

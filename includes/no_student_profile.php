@@ -13,8 +13,8 @@ http_response_code(200);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile Incomplete | SPTS Nilai University</title>
     <link href="../assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
-    <link href="../assets/css/dark-mode.css" rel="stylesheet">
-    <link href="../assets/css/app.css?v=3" rel="stylesheet">
+    <link href="../assets/css/dark-mode.css?v=4" rel="stylesheet">
+    <link href="../assets/css/app.css?v=4" rel="stylesheet">
     <link rel="icon" href="../assets/images/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="../assets/images/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="../assets/images/apple-touch-icon.png">

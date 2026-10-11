@@ -72,7 +72,7 @@ if ($sidebar_role === 'admin') {
     <!-- Logout is a CSRF-protected POST so another site can't sign users out. -->
     <form method="POST" action="../auth/logout.php" class="m-0">
         <?php echo csrf_field(); ?>
-        <button type="submit" class="nav-item nav-item-button" style="color:#EF4444;">
+        <button type="submit" class="nav-item nav-item-button nav-item-logout">
             <i class="bi bi-box-arrow-right"></i> Logout
         </button>
     </form>

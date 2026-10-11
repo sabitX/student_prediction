@@ -110,20 +110,13 @@ $page_styles     = <<<'CSS'
             z-index: 100; /* Ensure form sits above watermark */
         }
         
-        /* Topbar */
-        .topbar { background: #1A3A5C; height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; color: white; position: fixed; width: 100%; top: 0; z-index: 1030; }
-        .topbar .brand { font-weight: 700; font-size: 1.1rem; letter-spacing: 0.5px; }
-        
-        /* Sidebar */
-        .sidebar { width: 240px; background: #1E293B; flex-shrink: 0; position: fixed; height: calc(100vh - 60px); overflow-y: auto; display: flex; flex-direction: column; justify-content: space-between; }
-        
         /* Header */
         .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
         
         .badge-semester { background: #0D7377; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
 
         /* Stat Cards */
-        .stat-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); display: flex; flex-direction: column; justify-content: center; }
+        .stat-card { background: white; border-radius: 8px; padding: 20px; box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border); display: flex; flex-direction: column; justify-content: center; }
         .stat-card h3 { font-size: 1.8rem; font-weight: 700; margin: 0 0 4px; line-height: 1; }
         .stat-card p { font-size: 0.8rem; font-weight: 600; color: #1A3A5C; margin: 0; text-transform: uppercase; }
         .stat-card small { font-size: 0.75rem; color: #94A3B8; }
@@ -179,7 +172,7 @@ $page_styles     = <<<'CSS'
         .level-filter-btn.active .filter-count { background: rgba(255,255,255,0.25); color: #fff; }
 
         /* Table Area */
-        .table-container { background: white; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.03); overflow: hidden; margin-top: 24px; padding: 20px; }
+        .table-container { background: white; border-radius: 12px; box-shadow: var(--spts-card-shadow); border: 1px solid var(--spts-card-border); overflow: hidden; margin-top: 24px; padding: 20px; }
         .table-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         
         .table-custom { width: 100%; border-collapse: separate; border-spacing: 0; }
@@ -204,11 +197,17 @@ $page_styles     = <<<'CSS'
            background instead of relying on hue alone. */
         .status-pill { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 5px; text-align: center; min-width: 90px; }
         .status-pill i { font-size: 0.85rem; line-height: 1; }
-        .pill-exc  { background: #D1FAE5; color: #047857; }
-        .pill-pass { background: #E0F2FE; color: #075985; }
-        .pill-risk { background: #FEF3C7; color: #92400E; }
-        .pill-fail { background: #FEE2E2; color: #991B1B; }
-        .pill-none { background: #F1F5F9; color: #475569; }
+        /* Same soft palette as the .badge-status-* badges in app.css. */
+        .pill-exc  { background: #E3F2EA; color: #1D6B46; border: 1px solid #C4E3D1; }
+        .pill-pass { background: #E5EEF8; color: #1F4F86; border: 1px solid #C9DAEE; }
+        .pill-risk { background: #FBF0DC; color: #8A5508; border: 1px solid #F0DDB4; }
+        .pill-fail { background: #F9E5E5; color: #9B2C2C; border: 1px solid #EECACA; }
+        .pill-none { background: #EEF2F6; color: #475569; border: 1px solid #DCE3EB; }
+        [data-bs-theme="dark"] .pill-exc  { background: #12301F; color: #8FD3AE; border-color: #1E4D33; }
+        [data-bs-theme="dark"] .pill-pass { background: #142640; color: #9EC2EC; border-color: #213D63; }
+        [data-bs-theme="dark"] .pill-risk { background: #33260D; color: #E8C27A; border-color: #4F3A13; }
+        [data-bs-theme="dark"] .pill-fail { background: #361717; color: #F0A3A3; border-color: #552323; }
+        [data-bs-theme="dark"] .pill-none { background: #1E293B; color: #CBD5E1; border-color: #334155; }
 
         .btn-save { background: #0D7377; color: white; padding: 8px 20px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; border: none; transition: background 0.2s; }
         .btn-save:hover { background: #0a5e62; }
