@@ -26,6 +26,9 @@ $uploaded     = false;
 const CSV_COLUMNS  = ['student_id', 'subject_code', 'assignment', 'midterm', 'final_exam', 'attendance'];
 const CSV_MAX_BYTES = 2 * 1024 * 1024;   // 2 MB is thousands of rows
 const CSV_MAX_ROWS  = 5000;
+// Standard CSV (RFC 4180): quotes are escaped by doubling them, no backslash
+// escape. Passed explicitly: PHP 8.4 deprecates relying on the default.
+const CSV_ESCAPE = '';
 
 // Subjects this lecturer may upload marks for: assigned to them and not
 // archived. Keyed by upper-case subject code.
@@ -48,7 +51,7 @@ if (isset($_GET['download_template'])) {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="marks_template.csv"');
     $out = fopen('php://output', 'w');
-    fputcsv($out, CSV_COLUMNS);
+    fputcsv($out, CSV_COLUMNS, ',', '"', CSV_ESCAPE);
     if ($semester_id && $my_subjects) {
         $ids = implode(',', array_map(fn($r) => (int)$r['id'], $my_subjects)); // ints from the DB
         $roster = mysqli_query($conn, "SELECT s.student_id, sub.subject_code, p.assignment, p.midterm, p.final_exam, p.attendance
@@ -63,7 +66,7 @@ if (isset($_GET['download_template'])) {
                            $r['assignment'] === null ? '' : format_mark($r['assignment']),
                            $r['midterm'] === null ? '' : format_mark($r['midterm']),
                            $r['final_exam'] === null ? '' : format_mark($r['final_exam']),
-                           $r['attendance'] === null ? '' : format_mark($r['attendance'])]);
+                           $r['attendance'] === null ? '' : format_mark($r['attendance'])], ',', '"', CSV_ESCAPE);
         }
     }
     fclose($out);
@@ -86,7 +89,7 @@ if (isset($_POST['upload'])) {
         $upload_error = "No semester is active, so marks can't be saved. Ask an administrator to activate a semester.";
     } else {
         $handle = fopen($file['tmp_name'], 'r');
-        $header = fgetcsv($handle);
+        $header = fgetcsv($handle, null, ',', '"', CSV_ESCAPE);
 
         if ($header === false || $header === [null]) {
             $upload_error = "The file is empty.";
@@ -113,7 +116,7 @@ if (isset($_POST['upload'])) {
             mysqli_begin_transaction($conn);
             try {
                 $line = 1;
-                while (($data = fgetcsv($handle)) !== false) {
+                while (($data = fgetcsv($handle, null, ',', '"', CSV_ESCAPE)) !== false) {
                     $line++;
                     if ($line - 1 > CSV_MAX_ROWS) {
                         $error_rows[] = "Stopped after " . CSV_MAX_ROWS . " rows — upload the rest in another file.";
