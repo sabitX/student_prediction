@@ -6,6 +6,7 @@ require '../includes/semester.php';
 require '../includes/passwords.php';
 require '../includes/mailer.php';
 require '../includes/audit.php';
+require '../includes/academic_level.php';
 
 $error   = "";
 require_once '../includes/flash.php';
@@ -14,20 +15,22 @@ $success = $flash['success'] ?? "";
 $issued  = $flash['issued'] ?? null;   // shown once when the email could not be sent
 
 // Sign-in link for the emails: APP_URL from env.php if set, otherwise
-// worked out from this request.
-function staff_login_url() {
+// worked out from this request. Staff and students have separate portals.
+function login_url_for($role) {
+    $path = '/auth/login.php' . ($role === 'student' ? '' : '?portal=staff');
     if (setting('APP_URL') !== null) {
-        return rtrim(setting('APP_URL'), '/') . '/auth/login.php?portal=staff';
+        return rtrim(setting('APP_URL'), '/') . $path;
     }
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $base   = rtrim(str_replace('\\', '/', dirname(dirname($_SERVER['PHP_SELF']))), '/');
-    return $scheme . '://' . $_SERVER['HTTP_HOST'] . $base . '/auth/login.php?portal=staff';
+    return $scheme . '://' . $_SERVER['HTTP_HOST'] . $base . $path;
 }
 
 
 // ── Approve / reject a request ──────────────────────────────────────────
-// The admin is expected to confirm that the person really is new staff
-// (e.g. with HR or the department) before approving.
+// Lecturer requests come from the staff sign-in page, student requests
+// from the student one. The admin is expected to confirm the person (with
+// HR / the department, or against admission records) before approving.
 if (isset($_POST['request_id'])) {
     if (!csrf_verify()) {
         $error = "Your session expired or the request could not be verified. Please try again.";
@@ -44,26 +47,58 @@ if (isset($_POST['request_id'])) {
         if (!$req) {
             $error = "That request is no longer pending.";
         } elseif (isset($_POST['approve'])) {
+            // Only ever 'lecturer' or 'student': administrator accounts are
+            // never created from a request.
+            $role       = $req['role'] === 'student' ? 'student' : 'lecturer';
+            $is_student = $role === 'student';
+
             $stmt = mysqli_prepare($conn, "SELECT id FROM users WHERE email = ?");
             mysqli_stmt_bind_param($stmt, "s", $req['email']);
             mysqli_stmt_execute($stmt);
             $taken = mysqli_num_rows(mysqli_stmt_get_result($stmt)) > 0;
             mysqli_stmt_close($stmt);
 
+            // Students: the Student ID must still be free and the programme
+            // still valid for its level (checked again now, not just when
+            // the request was sent).
+            $id_taken = false;
+            $profile_error = '';
+            if ($is_student) {
+                $stmt = mysqli_prepare($conn, "SELECT id FROM students WHERE student_id = ?");
+                mysqli_stmt_bind_param($stmt, "s", $req['student_id']);
+                mysqli_stmt_execute($stmt);
+                $id_taken = mysqli_num_rows(mysqli_stmt_get_result($stmt)) > 0;
+                mysqli_stmt_close($stmt);
+                $profile_error = student_profile_error($req['student_id'], $req['course'], (int)$req['year_of_study']);
+            }
+
             if ($taken) {
-                $error = "An account with {$req['email']} already exists. Reject this request, or reset that account's password from Staff.";
+                $error = "An account with {$req['email']} already exists. Reject this request, or reset that account's password from " . ($is_student ? 'Students' : 'Staff') . ".";
+            } elseif ($id_taken) {
+                $error = "Student ID {$req['student_id']} already has an account. Reject this request, or reset that student's password from Students.";
+            } elseif ($profile_error !== '') {
+                $error = "This request can't be approved as it stands: $profile_error Reject it and ask the student to send a corrected request.";
             } else {
                 $temp = generate_temp_password();
                 $hash = password_hash($temp, PASSWORD_DEFAULT);
 
                 mysqli_begin_transaction($conn);
                 try {
-                    // Always a lecturer: administrator accounts are never created from a request.
-                    $stmt = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password, role, must_change_password) VALUES (?, ?, ?, 'lecturer', 1)");
-                    mysqli_stmt_bind_param($stmt, "sss", $req['full_name'], $req['email'], $hash);
+                    $stmt = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password, role, must_change_password) VALUES (?, ?, ?, ?, 1)");
+                    mysqli_stmt_bind_param($stmt, "ssss", $req['full_name'], $req['email'], $hash, $role);
                     mysqli_stmt_execute($stmt);
                     $new_user_id = mysqli_insert_id($conn);
                     mysqli_stmt_close($stmt);
+
+                    if ($is_student) {
+                        // Academic level comes from the Student ID, as everywhere else.
+                        $level = detect_academic_level($req['student_id']);
+                        $year  = (int)$req['year_of_study'];
+                        $stmt = mysqli_prepare($conn, "INSERT INTO students (user_id, student_id, course, academic_level, year_of_study) VALUES (?, ?, ?, ?, ?)");
+                        mysqli_stmt_bind_param($stmt, "isssi", $new_user_id, $req['student_id'], $req['course'], $level, $year);
+                        mysqli_stmt_execute($stmt);
+                        mysqli_stmt_close($stmt);
+                    }
 
                     // Still pending? Another admin may have handled it since
                     // this page loaded; then nothing is created.
@@ -76,7 +111,8 @@ if (isset($_POST['request_id'])) {
                         throw new RuntimeException('request already resolved');
                     }
 
-                    audit_log($conn, 'Account request approved', "Lecturer account created for {$req['full_name']} ({$req['email']})");
+                    audit_log($conn, 'Account request approved', ucfirst($role) . " account created for {$req['full_name']} ({$req['email']}"
+                        . ($is_student ? ", {$req['student_id']}" : '') . ")");
                     mysqli_commit($conn);
                 } catch (RuntimeException $e) {   // includes mysqli_sql_exception
                     mysqli_rollback($conn);
@@ -89,10 +125,10 @@ if (isset($_POST['request_id'])) {
                 }
 
                 if ($error === '') {
-                    $sent = send_mail($req['personal_email'], $req['full_name'], 'Your SPTS lecturer account is ready',
+                    $sent = send_mail($req['personal_email'], $req['full_name'], "Your SPTS $role account is ready",
                         "Hello {$req['full_name']},\n\n"
-                      . "Your lecturer account on the Student Performance Tracking System (Nilai University) has been approved.\n\n"
-                      . "Sign in here: " . staff_login_url() . "\n"
+                      . "Your $role account on the Student Performance Tracking System (Nilai University) has been approved.\n\n"
+                      . "Sign in here: " . login_url_for($role) . "\n"
                       . "Email: {$req['email']}\n"
                       . "Temporary password: $temp\n\n"
                       . "You'll be asked to choose your own password the first time you sign in. "
@@ -126,7 +162,7 @@ if (isset($_POST['request_id'])) {
 
                 send_mail($req['personal_email'], $req['full_name'], 'Your SPTS account request',
                     "Hello {$req['full_name']},\n\n"
-                  . "Your request for a lecturer account on the Student Performance Tracking System was not approved."
+                  . "Your request for a " . ($req['role'] === 'student' ? 'student' : 'lecturer') . " account on the Student Performance Tracking System was not approved."
                   . ($reason ? "\n\nReason: $reason" : '')
                   . "\n\nIf you think this is a mistake, please contact the administrator.\n\n"
                   . "— SPTS, Nilai University");
@@ -151,8 +187,8 @@ require '../includes/page_start.php';
 ?>
         <div class="page-header">
             <div>
-                <h2><i class="bi bi-person-plus me-2"></i>Lecturer Account Requests</h2>
-                <p>New lecturers ask for an account from the staff sign-in page. Check with HR or the department before approving.</p>
+                <h2><i class="bi bi-person-plus me-2"></i>Account Requests</h2>
+                <p>New lecturers ask from the staff sign-in page, newly admitted students from the student sign-in page. Check lecturers with HR or the department, and students against admission records, before approving.</p>
             </div>
         </div>
 
@@ -179,10 +215,11 @@ require '../includes/page_start.php';
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead class="table-custom-header">
-                        <tr><th>Lecturer</th><th>Department</th><th>Personal Email</th><th>Requested</th><th class="text-end">Action</th></tr>
+                        <tr><th>Name</th><th>Type</th><th>Details</th><th>Sign-in Details Go To</th><th>Requested</th><th class="text-end">Action</th></tr>
                     </thead>
                     <tbody>
-                    <?php while ($r = mysqli_fetch_assoc($pending)): ?>
+                    <?php while ($r = mysqli_fetch_assoc($pending)):
+                        $is_student = $r['role'] === 'student'; ?>
                         <tr>
                             <td>
                                 <strong><?php echo h($r['full_name']); ?></strong><br>
@@ -191,11 +228,24 @@ require '../includes/page_start.php';
                                     <div class="small mt-1 text-secondary"><i class="bi bi-chat-left-text me-1"></i><?php echo h($r['message']); ?></div>
                                 <?php endif; ?>
                             </td>
-                            <td><?php echo h($r['department']); ?></td>
+                            <td>
+                                <span class="badge-status <?php echo $is_student ? 'badge-status-pass' : 'badge-status-pending'; ?>">
+                                    <i class="bi <?php echo $is_student ? 'bi-mortarboard' : 'bi-person-badge'; ?> me-1"></i><?php echo $is_student ? 'Student' : 'Lecturer'; ?>
+                                </span>
+                            </td>
+                            <td>
+                                <?php if ($is_student): ?>
+                                    <strong><?php echo h($r['student_id']); ?></strong>
+                                    <span class="text-muted small">(<?php echo h(academic_level_label(detect_academic_level($r['student_id']))); ?>)</span><br>
+                                    <span class="small"><?php echo h($r['course']); ?> · Year <?php echo (int)$r['year_of_study']; ?></span>
+                                <?php else: ?>
+                                    <?php echo h($r['department']); ?>
+                                <?php endif; ?>
+                            </td>
                             <td><?php echo h($r['personal_email']); ?></td>
                             <td class="text-nowrap"><?php echo date('d M Y, h:i A', strtotime($r['created_at'])); ?></td>
                             <td class="text-end text-nowrap">
-                                <form method="POST" class="d-inline" onsubmit="return confirm(<?php echo h(json_encode('Create a lecturer account for ' . $r['full_name'] . ' and send the sign-in details to ' . $r['personal_email'] . '?')); ?>);">
+                                <form method="POST" class="d-inline" onsubmit="return confirm(<?php echo h(json_encode('Create a ' . ($is_student ? 'student' : 'lecturer') . ' account for ' . $r['full_name'] . ' and send the sign-in details to ' . $r['personal_email'] . '?')); ?>);">
                                     <?php echo csrf_field(); ?>
                                     <input type="hidden" name="request_id" value="<?php echo (int)$r['id']; ?>">
                                     <button type="submit" name="approve" class="btn btn-sm btn-primary-custom"><i class="bi bi-check-lg me-1"></i>Approve</button>
@@ -218,13 +268,14 @@ require '../includes/page_start.php';
             <?php if (mysqli_num_rows($history) > 0): ?>
             <div class="table-responsive">
                 <table class="table mb-0">
-                    <thead class="table-custom-header"><tr><th>Lecturer</th><th>Status</th><th>Requested</th><th>Reviewed</th><th>By</th></tr></thead>
+                    <thead class="table-custom-header"><tr><th>Name</th><th>Type</th><th>Status</th><th>Requested</th><th>Reviewed</th><th>By</th></tr></thead>
                     <tbody>
                     <?php while ($r = mysqli_fetch_assoc($history)): ?>
                         <tr>
-                            <td><?php echo h($r['full_name']); ?> <span class="text-muted small">(<?php echo h($r['email']); ?>)</span></td>
+                            <td><?php echo h($r['full_name']); ?> <span class="text-muted small">(<?php echo h($r['email']); ?><?php echo $r['student_id'] ? ', ' . h($r['student_id']) : ''; ?>)</span></td>
+                            <td><?php echo $r['role'] === 'student' ? 'Student' : 'Lecturer'; ?></td>
                             <td>
-                                <span class="badge <?php echo $r['status'] === 'Approved' ? 'bg-success' : 'bg-danger'; ?>"><?php echo h($r['status']); ?></span>
+                                <span class="<?php echo $r['status'] === 'Approved' ? 'badge-status badge-status-excellent' : 'badge-status badge-status-fail'; ?>"><?php echo h($r['status']); ?></span>
                                 <?php if ($r['reject_reason']): ?><div class="small text-muted mt-1"><?php echo h($r['reject_reason']); ?></div><?php endif; ?>
                             </td>
                             <td><?php echo date('d M Y', strtotime($r['created_at'])); ?></td>
@@ -251,7 +302,7 @@ require '../includes/page_start.php';
                     </div>
                     <div class="modal-body">
                         <label class="form-label" for="reject_reason">Reason <span class="text-muted fw-normal">(optional, included in the email to them)</span></label>
-                        <input type="text" name="reject_reason" id="reject_reason" class="form-control" maxlength="255" placeholder="e.g. Please use your official university email">
+                        <input type="text" name="reject_reason" id="reject_reason" class="form-control" maxlength="255" placeholder="e.g. We couldn't match this Student ID to an admission record">
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>

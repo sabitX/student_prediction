@@ -70,6 +70,13 @@ The full attributes, keys, relationships, delete rules and a ready-to-render ERD
 - A user given a **temporary password** is sent to Change Password before anything else.
 - If a session expired from inactivity, the page explains why the user is back at login.
 
+### 4.1a Student Account Request — [auth/request_student_account.php](auth/request_student_account.php)
+- **For newly admitted students**, linked from the student sign-in page ("New student? Request an account") while self-registration is off.
+- **Fields:** full name, email (also the sign-in email; details are sent there), Student ID, programme, year (1–3), optional message.
+- **Validation:** the same rules as admin-added students (Student ID format, programme must match the level the ID implies, year 1–3); refused if the email or Student ID already has an account, or already has a pending request (unique in the database).
+- **Rate limit:** 5 requests per 15 minutes per network.
+- **Review:** the admin sees it under **Account Requests** tagged *Student*, with the Student ID, detected level, programme and year, and checks it against admission records. Approving re-checks everything, then creates the login and the student profile in one transaction and emails a temporary password (shown to the admin once if email isn't set up). The student must choose their own password at first sign-in.
+
 ### 4.2 Student Self-Registration — [auth/register.php](auth/register.php)
 - **Off by default.** Only available when `ALLOW_SELF_REGISTRATION` is `true` in `config/env.php`; otherwise the page answers "Registration is closed" and the Register links are hidden. The form can't verify that someone owns the email or Student ID they enter, so in production the admin office creates student accounts.
 - **Fields:** full name, email, password + confirmation, Student ID, programme (grouped by level), year (1–3).

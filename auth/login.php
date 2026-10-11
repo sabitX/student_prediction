@@ -120,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="../assets/css/dark-mode.css?v=4" rel="stylesheet">
-    <link href="../assets/css/app.css?v=4" rel="stylesheet">
+    <link href="../assets/css/app.css?v=5" rel="stylesheet">
     <link rel="icon" href="../assets/images/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="../assets/images/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="../assets/images/apple-touch-icon.png">
@@ -363,11 +363,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
         <?php else: ?>
         <div class="text-center" style="font-size: 0.85rem;">
-            <span class="text-muted">Don't have an account?</span>
             <?php if (registration_open()): ?>
+                <span class="text-muted">Don't have an account?</span>
                 <a href="register.php" class="link-custom">Register here</a>
             <?php else: ?>
-                <span class="text-muted">Contact the admin office.</span>
+                <span class="text-muted">New student?</span>
+                <a href="request_student_account.php" class="link-custom">Request an account</a>
             <?php endif; ?>
         </div>
         <div class="text-center mt-2" style="font-size: 0.8rem;">

@@ -28,7 +28,7 @@ Going live on a real server? Follow **DEPLOYMENT.md** (HTTPS, php.ini, backups, 
 
 ### Upgrading an existing install
 
-Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql` and `007_predictions_view_collation.sql`, each once, in that order, as MySQL `root` (004–007 create triggers and a view). After that, do steps 5–6 above.
+Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql`, `007_predictions_view_collation.sql` and `008_student_account_requests.sql`, each once, in that order, as MySQL `root` (004–008 create triggers, a view and constraints). After that, do steps 5–6 above.
 
 ---
 
@@ -41,7 +41,7 @@ Back up the database, then run `database/migrations/001_fault_fixes.sql` and the
    - **Staff**: add lecturer accounts.
    - **Subjects**: add subjects and assign a lecturer to each.
    - **Enrolments**: choose which students take each subject this semester.
-3. The admin adds students under **Students**. (The public Register page is off unless `ALLOW_SELF_REGISTRATION` is set to `true` in `config/env.php`; it can't verify who owns an email or Student ID.)
+3. The admin adds students under **Students**, or newly admitted students ask for an account from the student sign-in page ("New student? Request an account") and the admin approves it under **Account Requests** after checking it against admission records. (The public Register page is off unless `ALLOW_SELF_REGISTRATION` is set to `true` in `config/env.php`; it can't verify who owns an email or Student ID.)
 
 The `tools/` scripts disable themselves once an admin, lecturer or subject exists.
 

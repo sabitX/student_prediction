@@ -147,6 +147,7 @@ button.is-submitting { opacity: 0.7; cursor: progress; }
     font-weight: 600;
     font-size: 0.78em;
     line-height: 1.2;
+    white-space: nowrap;
 }
 .badge-status-excellent { background: #E3F2EA; color: #1D6B46; border-color: #C4E3D1; }
 .badge-status-pass      { background: #E5EEF8; color: #1F4F86; border-color: #C9DAEE; }

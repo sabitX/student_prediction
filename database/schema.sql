@@ -2,7 +2,7 @@
 -- Fresh install: create the database `student_prediction`
 -- (CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci), import this file as a
 -- user that can CREATE TRIGGER (e.g. root), then follow README
--- "First-time setup". Existing installs: run database/migrations/001–007
+-- "First-time setup". Existing installs: run database/migrations/001–008
 -- in order instead.
 --
 -- Generated from a database with all migrations applied, so a fresh
@@ -13,11 +13,15 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 CREATE TABLE `account_requests` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `role` enum('lecturer','student') NOT NULL DEFAULT 'lecturer',
   `full_name` varchar(100) NOT NULL,
   `email` varchar(100) NOT NULL,
   `personal_email` varchar(100) NOT NULL,
   `staff_id` varchar(30) DEFAULT NULL,
-  `department` varchar(100) NOT NULL,
+  `student_id` varchar(20) DEFAULT NULL,
+  `course` varchar(100) DEFAULT NULL,
+  `year_of_study` tinyint(4) DEFAULT NULL,
+  `department` varchar(100) DEFAULT NULL,
   `message` varchar(500) DEFAULT NULL,
   `status` enum('Pending','Approved','Rejected') NOT NULL DEFAULT 'Pending',
   `reject_reason` varchar(255) DEFAULT NULL,
@@ -26,14 +30,17 @@ CREATE TABLE `account_requests` (
   `resolved_at` datetime DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `pending_email` varchar(100) GENERATED ALWAYS AS (if(`status` = 'Pending',`email`,NULL)) STORED,
+  `pending_student_id` varchar(20) GENERATED ALWAYS AS (if(`status` = 'Pending',`student_id`,NULL)) STORED,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_pending_email` (`pending_email`),
+  UNIQUE KEY `uniq_pending_student_id` (`pending_student_id`),
   KEY `idx_account_requests_status` (`status`),
   KEY `idx_account_requests_email` (`email`),
   KEY `account_requests_user_fk` (`user_id`),
   KEY `account_requests_admin_fk` (`resolved_by`),
   CONSTRAINT `account_requests_admin_fk` FOREIGN KEY (`resolved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `account_requests_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  CONSTRAINT `account_requests_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `chk_account_request_role` CHECK (`role` = 'lecturer' and `department` is not null or `role` = 'student' and `student_id` is not null and `course` is not null and `year_of_study` between 1 and 3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `audit_logs` (
