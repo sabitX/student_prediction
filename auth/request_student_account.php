@@ -310,6 +310,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
 
         <?php endif; ?>
+
+        <div class="text-center mt-4">
+            <a href="../index.php" class="link-custom" style="font-size:0.85rem;">
+                <i class="bi bi-arrow-left me-1"></i>Back to Home
+            </a>
+        </div>
     </div>
 </div>
 
