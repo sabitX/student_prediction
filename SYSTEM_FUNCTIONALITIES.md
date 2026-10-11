@@ -71,6 +71,7 @@ The full attributes, keys, relationships, delete rules and a ready-to-render ERD
 - If a session expired from inactivity, the page explains why the user is back at login.
 
 ### 4.2 Student Self-Registration — [auth/register.php](auth/register.php)
+- **Off by default.** Only available when `ALLOW_SELF_REGISTRATION` is `true` in `config/env.php`; otherwise the page answers "Registration is closed" and the Register links are hidden. The form can't verify that someone owns the email or Student ID they enter, so in production the admin office creates student accounts.
 - **Fields:** full name, email, password + confirmation, Student ID, programme (grouped by level), year (1–3).
 - **Server-side validation:**
   - email format

@@ -17,7 +17,7 @@ $form    = ['full_name' => '', 'email' => '', 'personal_email' => '', 'staff_id'
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     foreach ($form as $key => $_) {
-        $form[$key] = trim($_POST[$key] ?? '');
+        $form[$key] = is_string($_POST[$key] ?? null) ? trim($_POST[$key]) : '';
     }
 
     if (!csrf_verify()) {
@@ -28,10 +28,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = "Please enter valid email addresses.";
     } elseif (mb_strlen($form['full_name']) > 100 || mb_strlen($form['department']) > 100 || mb_strlen($form['staff_id']) > 30 || mb_strlen($form['message']) > 500) {
         $error = "One of the fields is too long.";
-    } elseif (login_is_throttled($conn, $form['email'], 'account_request')) {
+    // Limited per network (the throttle key always includes the IP), not per
+    // typed email: each request emails an address the sender chooses, so a
+    // per-email limit could be dodged by changing that field.
+    } elseif (login_is_throttled($conn, '*', 'account_request')) {
         $error = "Too many requests. Please wait " . LOGIN_WINDOW_MINUTES . " minutes and try again.";
     } else {
-        login_record_failed_attempt($conn, $form['email'], 'account_request');
+        login_record_failed_attempt($conn, '*', 'account_request');
 
         $stmt = mysqli_prepare($conn, "SELECT id FROM users WHERE email = ?");
         mysqli_stmt_bind_param($stmt, "s", $form['email']);

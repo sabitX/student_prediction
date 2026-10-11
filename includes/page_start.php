@@ -1,8 +1,11 @@
 <?php
 // ── Shared page frame (head, topbar, sidebar) for signed-in pages ───────
-// Used by the newer admin pages so they don't each carry a copy of the
-// layout CSS. Set $page_title before including; optional $page_styles is
-// extra CSS for that page. Close the page with includes/page_end.php.
+// Every signed-in page uses this, so none carries its own copy of the
+// layout. Set $page_title before including. Optional:
+//   $page_styles      extra CSS for that page (after the shared rules)
+//   $topbar_label     text beside the avatar (default "Welcome, <first name>")
+//   $page_own_alerts  true if the page shows $success/$error itself
+// Close the page with includes/page_end.php ($page_scripts goes there).
 // Requires session_check.php, config.php and semester.php to be loaded.
 
 $full_name       = $_SESSION['full_name'];
@@ -81,7 +84,7 @@ $brand_icon      = ($_SESSION['role'] === 'admin') ? 'bi-shield-lock-fill' : 'bi
         <button type="button" class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
             <i class="bi bi-moon-stars-fill theme-toggle-icon"></i>
         </button>
-        <span>Welcome, <?php echo h($first_name); ?></span>
+        <span><?php echo h($topbar_label ?? 'Welcome, ' . $first_name); ?></span>
         <div class="avatar"><?php echo h($initials); ?></div>
     </div>
 </header>
@@ -96,9 +99,11 @@ $brand_icon      = ($_SESSION['role'] === 'admin') ? 'bi-shield-lock-fill' : 'bi
     </aside>
 
     <main class="main-content">
+        <?php if (empty($page_own_alerts)): ?>
         <?php if (!empty($success)): ?>
             <div class="alert alert-ok py-2 mb-4"><i class="bi bi-check-circle-fill me-2"></i><?php echo h($success); ?></div>
         <?php endif; ?>
         <?php if (!empty($error)): ?>
             <div class="alert alert-bad py-2 mb-4"><i class="bi bi-exclamation-circle-fill me-2"></i><?php echo h($error); ?></div>
+        <?php endif; ?>
         <?php endif; ?>

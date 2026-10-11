@@ -30,8 +30,16 @@ if (isset($_POST['save_enrolments'])) {
         $error = "Activate a semester first (Semesters page).";
     } elseif (!$subject_id) {
         $error = "Choose a valid subject.";
+    } elseif (!isset($_POST['shown'])) {
+        // Pages from before the list was paged don't say which students they
+        // showed; saving one could un-enrol everyone else. Reload instead.
+        $error = "This page was out of date. Please make your changes again.";
     } else {
-        $wanted = array_map('intval', (array)($_POST['students'] ?? []));
+        // The list is paged and searchable, so only the students that were on
+        // screen ("shown") are changed. A student on another page is neither
+        // enrolled nor removed just because their box wasn't in this form.
+        $shown  = array_map('intval', (array)$_POST['shown']);
+        $wanted = array_intersect(array_map('intval', (array)($_POST['students'] ?? [])), $shown);
 
         $stmt = mysqli_prepare($conn, "SELECT student_id FROM student_enrollments WHERE subject_id = ? AND semester_id = ?");
         mysqli_stmt_bind_param($stmt, "ii", $subject_id, $semester_id);
@@ -40,7 +48,7 @@ if (isset($_POST['save_enrolments'])) {
         mysqli_stmt_close($stmt);
 
         $to_add    = array_diff($wanted, $current);
-        $to_remove = array_diff($current, $wanted);
+        $to_remove = array_diff(array_intersect($current, $shown), $wanted);
         $kept      = 0;
 
         mysqli_begin_transaction($conn);
@@ -82,42 +90,83 @@ if (isset($_POST['save_enrolments'])) {
     }
 }
 
-redirect_after_success($success, $error, [], 'manage_enrollments.php?subject_id=' . $subject_id);
+// ── One page of students, optionally searched / filtered by level ──────
+require '../includes/pagination.php';
+$list  = list_params();
+$level = in_array($_GET['level'] ?? '', ['Diploma', 'Degree', 'Masters', 'PhD'], true) ? $_GET['level'] : '';
 
-$students = [];
+// Back to the same subject, search and page after saving.
+$self_url = 'manage_enrollments.php?' . http_build_query(array_filter(
+    ['subject_id' => $subject_id, 'q' => $list['q'], 'level' => $level, 'page' => $list['page'] > 1 ? $list['page'] : null],
+    fn($v) => $v !== null && $v !== ''
+));
+redirect_after_success($success, $error, [], $self_url);
+
+$students       = [];
+$students_total = 0;
+$enrolled_count = 0;
+$all_students   = 0;
 if ($subject_id && $semester_id) {
+    // Whole-subject figures for the badge, whatever page is showing.
+    $stmt = mysqli_prepare($conn, "SELECT (SELECT COUNT(*) FROM students) AS all_students,
+                                          (SELECT COUNT(*) FROM student_enrollments WHERE subject_id = ? AND semester_id = ?) AS enrolled");
+    mysqli_stmt_bind_param($stmt, "ii", $subject_id, $semester_id);
+    mysqli_stmt_execute($stmt);
+    $counts = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    mysqli_stmt_close($stmt);
+    $all_students   = (int)$counts['all_students'];
+    $enrolled_count = (int)$counts['enrolled'];
+
+    // Conditions added only when used (comparing a bound value with '' in
+    // SQL can fail with "Illegal mix of collations" on MariaDB).
+    $conds  = [];
+    $types  = '';
+    $params = [];
+    if ($list['q'] !== '') {
+        $conds[] = "(u.full_name LIKE ? OR s.student_id LIKE ?)";
+        $types  .= 'ss';
+        array_push($params, like_pattern($list['q']), like_pattern($list['q']));
+    }
+    if ($level !== '') {
+        $conds[] = "s.academic_level = ?";
+        $types  .= 's';
+        $params[] = $level;
+    }
+    $filter = "FROM students s JOIN users u ON u.id = s.user_id" . ($conds ? ' WHERE ' . implode(' AND ', $conds) : '');
+
+    $stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS n $filter");
+    if ($params) mysqli_stmt_bind_param($stmt, $types, ...$params);
+    mysqli_stmt_execute($stmt);
+    $students_total = (int)mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['n'];
+    mysqli_stmt_close($stmt);
+    $list = list_clamp($list, $students_total);
+
     $stmt = mysqli_prepare($conn, "SELECT s.id, s.student_id, s.academic_level, s.course, u.full_name,
-                                          (e.id IS NOT NULL) AS enrolled,
-                                          (p.id IS NOT NULL) AS has_marks
-                                   FROM students s
-                                   JOIN users u ON u.id = s.user_id
-                                   LEFT JOIN student_enrollments e ON e.student_id = s.id AND e.subject_id = ? AND e.semester_id = ?
-                                   LEFT JOIN performance p ON p.student_id = s.id AND p.subject_id = ? AND p.semester_id = ?
-                                   ORDER BY u.full_name");
-    mysqli_stmt_bind_param($stmt, "iiii", $subject_id, $semester_id, $subject_id, $semester_id);
+                                          EXISTS(SELECT 1 FROM student_enrollments e WHERE e.student_id = s.id AND e.subject_id = ? AND e.semester_id = ?) AS enrolled,
+                                          EXISTS(SELECT 1 FROM performance p WHERE p.student_id = s.id AND p.subject_id = ? AND p.semester_id = ?) AS has_marks
+                                   $filter
+                                   ORDER BY u.full_name
+                                   LIMIT ? OFFSET ?");
+    mysqli_stmt_bind_param($stmt, "iiii{$types}ii", $subject_id, $semester_id, $subject_id, $semester_id,
+                           ...[...$params, $list['limit'], $list['offset']]);
     mysqli_stmt_execute($stmt);
     $students = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
     mysqli_stmt_close($stmt);
 }
-$enrolled_count = count(array_filter($students, fn($s) => $s['enrolled']));
 
 $page_title = 'Enrolments';
 $page_scripts = <<<'JS'
 <script>
-// Search + level filter only hide rows; hidden checkboxes keep their state.
+// Typing filters the rows on this page (hidden checkboxes keep their state);
+// Enter, or changing the level, reloads with a search of every student.
 (function () {
     const search = document.getElementById('enrolSearch');
-    const level  = document.getElementById('enrolLevel');
     if (!search) return;
     const rows = () => document.querySelectorAll('#enrolTable tbody tr');
-    function apply() {
-        const q = search.value.toLowerCase(), lv = level.value;
-        rows().forEach(r => {
-            r.style.display = (r.textContent.toLowerCase().includes(q) && (!lv || r.dataset.level === lv)) ? '' : 'none';
-        });
-    }
-    search.addEventListener('input', apply);
-    level.addEventListener('change', apply);
+    search.addEventListener('input', function () {
+        const q = search.value.toLowerCase();
+        rows().forEach(r => { r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+    });
     document.getElementById('selectVisible').addEventListener('click', () => {
         rows().forEach(r => { if (r.style.display !== 'none') r.querySelector('input').checked = true; });
     });
@@ -154,7 +203,20 @@ require '../includes/page_start.php';
                     </select>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <span class="badge bg-primary fs-6"><?php echo $enrolled_count; ?> of <?php echo count($students); ?> students enrolled</span>
+                    <span class="badge bg-primary fs-6"><?php echo $enrolled_count; ?> of <?php echo $all_students; ?> students enrolled</span>
+                </div>
+                <!-- Enter in the search box, or a level change, searches every student. -->
+                <div class="col-12 d-flex flex-wrap gap-2 mt-3">
+                    <input type="search" name="q" id="enrolSearch" value="<?php echo h($list['q']); ?>" aria-label="Search students" class="form-control form-control-sm" style="max-width:240px;" placeholder="Search name or ID...">
+                    <select name="level" id="enrolLevel" aria-label="Academic level" class="form-select form-select-sm" style="max-width:200px;" onchange="this.form.submit()">
+                        <option value="">All levels</option>
+                        <?php foreach (['Diploma', 'Degree', 'Masters', 'PhD'] as $lv): ?>
+                            <option value="<?php echo $lv; ?>" <?php echo $level === $lv ? 'selected' : ''; ?>><?php echo h(academic_level_label($lv)); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php if ($list['q'] !== '' || $level !== ''): ?>
+                        <a href="manage_enrollments.php?subject_id=<?php echo $subject_id; ?>" class="btn btn-sm btn-link">Clear search</a>
+                    <?php endif; ?>
                 </div>
             </form>
 
@@ -162,13 +224,6 @@ require '../includes/page_start.php';
                 <?php echo csrf_field(); ?>
                 <input type="hidden" name="subject_id" value="<?php echo $subject_id; ?>">
                 <div class="d-flex flex-wrap gap-2 mb-3">
-                    <input type="text" id="enrolSearch" class="form-control form-control-sm" style="max-width:240px;" placeholder="Search name or ID...">
-                    <select id="enrolLevel" class="form-select form-select-sm" style="max-width:200px;">
-                        <option value="">All levels</option>
-                        <?php foreach (['Diploma', 'Degree', 'Masters', 'PhD'] as $lv): ?>
-                            <option value="<?php echo $lv; ?>"><?php echo h(academic_level_label($lv)); ?></option>
-                        <?php endforeach; ?>
-                    </select>
                     <button type="button" id="selectVisible" class="btn btn-sm btn-outline-secondary">Select shown</button>
                     <button type="button" id="clearVisible" class="btn btn-sm btn-outline-secondary">Clear shown</button>
                     <button type="submit" name="save_enrolments" class="btn btn-sm btn-primary-custom ms-auto">Save Enrolments</button>
@@ -182,6 +237,8 @@ require '../includes/page_start.php';
                         <?php foreach ($students as $st): ?>
                             <tr data-level="<?php echo h($st['academic_level']); ?>">
                                 <td>
+                                    <!-- Saving only changes the students listed here. -->
+                                    <input type="hidden" name="shown[]" value="<?php echo (int)$st['id']; ?>">
                                     <?php if ($st['enrolled'] && $st['has_marks']): ?>
                                         <!-- Locked: has marks this semester, so it can't be un-enrolled. -->
                                         <input type="checkbox" class="form-check-input" checked disabled title="Has marks this semester — can't be removed" aria-label="<?php echo h($st['full_name']); ?> is enrolled (locked)">
@@ -199,7 +256,11 @@ require '../includes/page_start.php';
                         </tbody>
                     </table>
                 </div>
+                <?php if (!$students): ?>
+                    <div class="empty-state">No students match this search.</div>
+                <?php endif; ?>
             </form>
+            <?php render_pagination($list, $students_total); ?>
         </div>
         <?php endif; ?>
 <?php require '../includes/page_end.php'; ?>

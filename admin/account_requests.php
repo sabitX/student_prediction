@@ -65,17 +65,27 @@ if (isset($_POST['request_id'])) {
                     $new_user_id = mysqli_insert_id($conn);
                     mysqli_stmt_close($stmt);
 
-                    $stmt = mysqli_prepare($conn, "UPDATE account_requests SET status = 'Approved', user_id = ?, resolved_by = ?, resolved_at = NOW() WHERE id = ?");
+                    // Still pending? Another admin may have handled it since
+                    // this page loaded; then nothing is created.
+                    $stmt = mysqli_prepare($conn, "UPDATE account_requests SET status = 'Approved', user_id = ?, resolved_by = ?, resolved_at = NOW() WHERE id = ? AND status = 'Pending'");
                     mysqli_stmt_bind_param($stmt, "iii", $new_user_id, $admin_id, $request_id);
                     mysqli_stmt_execute($stmt);
+                    $claimed = mysqli_stmt_affected_rows($stmt) === 1;
                     mysqli_stmt_close($stmt);
+                    if (!$claimed) {
+                        throw new RuntimeException('request already resolved');
+                    }
 
                     audit_log($conn, 'Account request approved', "Lecturer account created for {$req['full_name']} ({$req['email']})");
                     mysqli_commit($conn);
-                } catch (mysqli_sql_exception $e) {
+                } catch (RuntimeException $e) {   // includes mysqli_sql_exception
                     mysqli_rollback($conn);
-                    error_log('SPTS account request approve: ' . $e->getMessage());
-                    $error = "The account could not be created. Please try again.";
+                    if ($e->getMessage() === 'request already resolved') {
+                        $error = "That request was just handled by another administrator.";
+                    } else {
+                        error_log('SPTS account request approve: ' . $e->getMessage());
+                        $error = "The account could not be created. Please try again.";
+                    }
                 }
 
                 if ($error === '') {
@@ -99,21 +109,29 @@ if (isset($_POST['request_id'])) {
                 }
             }
         } else {
-            $reason = trim($_POST['reject_reason'] ?? '');
+            $reason = is_string($_POST['reject_reason'] ?? null) ? trim($_POST['reject_reason']) : '';
             $reason = $reason !== '' ? mb_substr($reason, 0, 255) : null;
-            $stmt = mysqli_prepare($conn, "UPDATE account_requests SET status = 'Rejected', reject_reason = ?, resolved_by = ?, resolved_at = NOW() WHERE id = ?");
+            // Only a request that is still pending: if another admin approved
+            // it meanwhile, it must not flip to Rejected (or email the person).
+            $stmt = mysqli_prepare($conn, "UPDATE account_requests SET status = 'Rejected', reject_reason = ?, resolved_by = ?, resolved_at = NOW() WHERE id = ? AND status = 'Pending'");
             mysqli_stmt_bind_param($stmt, "sii", $reason, $admin_id, $request_id);
             mysqli_stmt_execute($stmt);
+            $rejected = mysqli_stmt_affected_rows($stmt) === 1;
             mysqli_stmt_close($stmt);
-            audit_log($conn, 'Account request rejected', "Request from {$req['full_name']} ({$req['email']})" . ($reason ? " | Reason: $reason" : ''));
 
-            send_mail($req['personal_email'], $req['full_name'], 'Your SPTS account request',
-                "Hello {$req['full_name']},\n\n"
-              . "Your request for a lecturer account on the Student Performance Tracking System was not approved."
-              . ($reason ? "\n\nReason: $reason" : '')
-              . "\n\nIf you think this is a mistake, please contact the administrator.\n\n"
-              . "— SPTS, Nilai University");
-            $success = "Request from {$req['full_name']} rejected.";
+            if (!$rejected) {
+                $error = "That request was just handled by another administrator.";
+            } else {
+                audit_log($conn, 'Account request rejected', "Request from {$req['full_name']} ({$req['email']})" . ($reason ? " | Reason: $reason" : ''));
+
+                send_mail($req['personal_email'], $req['full_name'], 'Your SPTS account request',
+                    "Hello {$req['full_name']},\n\n"
+                  . "Your request for a lecturer account on the Student Performance Tracking System was not approved."
+                  . ($reason ? "\n\nReason: $reason" : '')
+                  . "\n\nIf you think this is a mistake, please contact the administrator.\n\n"
+                  . "— SPTS, Nilai University");
+                $success = "Request from {$req['full_name']} rejected.";
+            }
         }
     }
 }

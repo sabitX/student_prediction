@@ -21,7 +21,9 @@ function csrf_field() {
 }
 
 function csrf_verify() {
-    if (empty($_SESSION['csrf_token']) || empty($_POST['csrf_token'])) {
+    // is_string: a token sent as an array (csrf_token[]=x) would make
+    // hash_equals() throw instead of simply failing the check.
+    if (empty($_SESSION['csrf_token']) || !is_string($_POST['csrf_token'] ?? null) || $_POST['csrf_token'] === '') {
         return false;
     }
     return hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']);

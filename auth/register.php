@@ -6,6 +6,11 @@ require '../includes/academic_level.php';
 require '../includes/passwords.php';
 require '../includes/login_throttle.php';
 
+if (!registration_open()) {
+    render_error_page(404, 'Registration is closed', 'Student accounts are created by the admin office. Please contact them to get access.');
+    exit();
+}
+
 $error   = "";
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {

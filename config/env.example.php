@@ -20,6 +20,11 @@ return [
     // work it out from each request (fine for localhost).
     'APP_URL'     => '',   // e.g. 'https://spts.nilai.edu.my'
 
+    // Let visitors create their own student accounts (Register page)?
+    // Leave false in production: the form can't verify that someone owns
+    // the email or Student ID they enter. Admins add students instead.
+    'ALLOW_SELF_REGISTRATION' => false,
+
     // Outgoing email (SMTP). Used to send new lecturers their sign-in
     // details. Leave MAIL_HOST blank to turn email off: the admin then sees
     // the temporary password on screen instead.

@@ -217,91 +217,50 @@ if (isset($_POST['edit_student']) && csrf_verify()) {
 
 redirect_after_success($success, $error, ['issued' => $issued]);
 
-// ── SECURE QUERY: Fetch all students (figures for the active semester) ─
-// Subqueries rather than two LEFT JOINs so counts/averages aren't
-// multiplied by each other. $semester_id is an int from the DB.
+// ── SECURE QUERY: one page of students (figures for the active semester) ─
+// Searchable and paged (includes/pagination.php). Subqueries rather than
+// two LEFT JOINs so counts/averages aren't multiplied by each other.
+require '../includes/pagination.php';
 $semester_id = get_active_semester_id($conn);
-$students_query = "SELECT s.*, u.full_name, u.email,
-                   (SELECT COUNT(*) FROM student_enrollments e WHERE e.student_id = s.id AND e.semester_id = $semester_id) AS subjects_entered,
-                   (SELECT AVG(pr.total_score) FROM predictions pr WHERE pr.student_id = s.id AND pr.semester_id = $semester_id) AS avg_score
-                   FROM students s
-                   JOIN users u ON s.user_id = u.id
-                   ORDER BY u.full_name";
-$students = mysqli_query($conn, $students_query);
+$list   = list_params();
+$filter = "FROM students s JOIN users u ON s.user_id = u.id";
+$types  = '';
+$params = [];
+if ($list['q'] !== '') {
+    $filter .= " WHERE (u.full_name LIKE ? OR s.student_id LIKE ? OR u.email LIKE ?)";
+    $types   = 'sss';
+    $params  = array_fill(0, 3, like_pattern($list['q']));
+}
+
+$stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS n $filter");
+if ($params) mysqli_stmt_bind_param($stmt, $types, ...$params);
+mysqli_stmt_execute($stmt);
+$students_total = (int)mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['n'];
+mysqli_stmt_close($stmt);
+$list = list_clamp($list, $students_total);
+
+$stmt = mysqli_prepare($conn, "SELECT s.*, u.full_name, u.email,
+                                      (SELECT COUNT(*) FROM student_enrollments e WHERE e.student_id = s.id AND e.semester_id = ?) AS subjects_entered,
+                                      (SELECT AVG(pr.total_score) FROM predictions pr WHERE pr.student_id = s.id AND pr.semester_id = ?) AS avg_score
+                               $filter
+                               ORDER BY u.full_name
+                               LIMIT ? OFFSET ?");
+mysqli_stmt_bind_param($stmt, "ii{$types}ii", $semester_id, $semester_id, ...[...$params, $list['limit'], $list['offset']]);
+mysqli_stmt_execute($stmt);
+$students = mysqli_stmt_get_result($stmt);
+mysqli_stmt_close($stmt);
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Students | SPTS Nilai University</title>
-    <script>(function(){try{if(localStorage.getItem('spts-theme')==='dark')document.documentElement.setAttribute('data-bs-theme','dark');}catch(e){}})();</script>
-    <link href="../assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
-    <link href="../assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link href="../assets/css/dark-mode.css" rel="stylesheet">
-    <link href="../assets/css/app.css?v=3" rel="stylesheet">
-    <link rel="icon" href="../assets/images/favicon-32.png" type="image/png" sizes="32x32">
-    <link rel="icon" href="../assets/images/favicon.ico" sizes="any">
-    <link rel="apple-touch-icon" href="../assets/images/apple-touch-icon.png">
-    <style>
-        /* ── Base & Branding ────────────────────────────────────────────── */
-        *, *::before, *::after { box-sizing: border-box; }
-
-        body {
-            font-family: 'Inter', system-ui, sans-serif;
-            background: #F0F4F8;
-            color: #1A1A2E;
-            margin: 0;
-            padding: 0;
-            overflow-x: hidden;
-        }
-
-        /* Institutional Watermark */
-        .bg-logo {
-            position: fixed;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80vw; height: 80vh;
-            background-image: url('../assets/images/nilai_logo.png');
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-            opacity: 0.08;
-            pointer-events: none;
-            z-index: 99;
-            filter: grayscale(100%);
-        }
-
+<?php
+// Shared head, topbar and sidebar (includes/page_start.php); only this
+// page's own CSS is here.
+$page_title      = 'Manage Students';
+$page_own_alerts = true;   // this page places its own messages
+$page_styles     = <<<'CSS'
         .container {
             position: relative;
             z-index: 100; /* Ensure form sits above watermark */
         }
-
-        /* Topbar */
-        .topbar { background: #1A3A5C; height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; color: white; position: fixed; width: 100%; top: 0; z-index: 1030; border-bottom: 3px solid #0D7377; }
-        .topbar .brand { font-weight: 700; font-size: 1.1rem; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
-        .topbar .user-profile { display: flex; align-items: center; gap: 12px; font-size: 0.85rem; color: #CBD5E1; }
-        .avatar { background: #0D7377; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; color: white; }
-
-        /* Layout */
-        .layout-wrapper { display: flex; margin-top: 60px; min-height: calc(100vh - 60px); position: relative; z-index: 100; }
-
-        /* Sidebar */
-        .sidebar { width: 240px; background: #1E293B; flex-shrink: 0; position: fixed; height: calc(100vh - 60px); overflow-y: auto; display: flex; flex-direction: column; justify-content: space-between; z-index: 1020; }
-        .sidebar-nav { padding-top: 20px; }
-        .nav-item { padding: 14px 24px; color: #94A3B8; display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s; }
-        .nav-item:hover { color: white; background: rgba(255,255,255,0.05); }
-        .nav-item.active { background: #0D7377; color: white; border-left: 4px solid white; }
-
-        .active-semester { padding: 20px; background: rgba(0,0,0,0.15); text-align: center; border-top: 1px solid rgba(255,255,255,0.05); }
-        .active-semester p { margin: 0; font-size: 0.75rem; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; }
-        .active-semester h6 { margin: 4px 0 0; color: #F59E0B; font-weight: 700; font-size: 0.9rem; }
-
-        /* Main Content */
-        .main-content { margin-left: 240px; flex-grow: 1; padding: 32px; }
 
         /* ── Dashboard Cards & Forms ────────────────────────────────────── */
         .dashboard-card {
@@ -311,16 +270,6 @@ $students = mysqli_query($conn, $students_query);
             padding: 28px;
             box-shadow: 0 8px 32px rgba(26,58,92,0.05), 0 2px 8px rgba(26,58,92,0.02);
             height: 100%;
-        }
-
-        .card-header-title {
-            font-size: 1.05rem;
-            font-weight: 700;
-            color: #1A3A5C;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
         }
 
         /* ── Action Buttons ─────────────────────────────────────────────── */
@@ -347,19 +296,6 @@ $students = mysqli_query($conn, $students_query);
 
         .btn-delete { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
         .btn-delete:hover { background: #FEE2E2; color: #DC2626; }
-
-        /* ── Tables ─────────────────────────────────────────────────────── */
-        .table-custom-header th {
-            background: #1A3A5C !important;
-            color: #ffffff !important;
-            font-weight: 600;
-            font-size: 0.82rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: none;
-            padding: 14px 12px;
-            vertical-align: middle;
-        }
         .table > tbody > tr > td {
             vertical-align: middle;
             font-size: 0.88rem;
@@ -367,38 +303,12 @@ $students = mysqli_query($conn, $students_query);
             padding: 16px 12px;
             border-color: #F8FAFC;
         }
-    </style>
-</head>
-<body>
-
-<div class="bg-logo"></div>
-
-<!-- Topbar -->
-<header class="topbar">
-    <div class="brand">
-        <i class="bi bi-shield-lock-fill me-2"></i>SPTS — Nilai University
-    </div>
-    <div class="user-profile">
-        <button type="button" class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
-            <i class="bi bi-moon-stars-fill theme-toggle-icon"></i>
-        </button>
-        <span>Welcome, <?php echo h($first_name); ?></span>
-        <div class="avatar"><?php echo h($initials); ?></div>
-    </div>
-</header>
-
-<div class="layout-wrapper">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-        <?php require '../includes/sidebar.php'; ?>
-        <div class="active-semester">
-            <p>Active Semester</p>
-            <h6><?php echo $active_semester; ?></h6>
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="main-content">
+        /* Shared rules this page does not use (keeps its original look). */
+        .dashboard-card { margin-bottom: 0; }
+        .form-label { font-size: inherit; font-weight: inherit; color: inherit; }
+CSS;
+require '../includes/page_start.php';
+?>
     <div class="container mb-5" style="max-width:100%; margin-left:0;">
 
     <?php if ($success): ?>
@@ -480,13 +390,19 @@ $students = mysqli_query($conn, $students_query);
             <div class="card-header-title mb-0">
                 <i class="bi bi-person-lines-fill text-primary"></i>All Registered Students
             </div>
-            <div style="width: 280px;">
+            <!-- Typing filters this page; Enter searches every student. -->
+            <form method="GET" style="width: 280px;" role="search">
                 <div class="input-group">
                     <span class="input-group-text bg-light border-0" style="color:#94A3B8;"><i class="bi bi-search"></i></span>
-                    <input type="text" id="studentSearch" class="form-control bg-light border-0" placeholder="Search by name, ID, or email..." style="font-size:0.88rem; box-shadow:none;">
+                    <input type="search" name="q" id="studentSearch" value="<?php echo h($list['q']); ?>" aria-label="Search students" class="form-control bg-light border-0" placeholder="Search by name, ID, or email..." style="font-size:0.88rem; box-shadow:none;">
                 </div>
-            </div>
+            </form>
         </div>
+        <?php if ($students_total === 0): ?>
+            <div class="empty-state p-4 text-center text-muted">
+                <?php echo $list['q'] !== '' ? 'No students match "' . h($list['q']) . '". <a href="manage_students.php">Show all</a>' : 'No students registered yet.'; ?>
+            </div>
+        <?php endif; ?>
 
         <div class="table-responsive">
         <table class="table table-hover mb-0" id="studentTable">
@@ -504,7 +420,7 @@ $students = mysqli_query($conn, $students_query);
                 </tr>
             </thead>
             <tbody>
-                <?php $i = 1; while ($row = mysqli_fetch_assoc($students)): ?>
+                <?php $i = $list['offset'] + 1; while ($row = mysqli_fetch_assoc($students)): ?>
                 <tr>
                     <td class="ps-4 text-muted" style="font-size:0.8rem;"><?php echo $i++; ?></td>
                     <td class="fw-bold" style="color:#1A3A5C; font-size:0.85rem;"><?php echo h($row['student_id']); ?></td>
@@ -599,14 +515,16 @@ $students = mysqli_query($conn, $students_query);
             </tbody>
         </table>
         </div>
+        <?php render_pagination($list, $students_total); ?>
     </div>
     </div>
 
     </div>
     </div>
-    </main>
-</div>
-
+<?php
+// Modals and page scripts: page_end.php prints them after Bootstrap.
+ob_start();
+?>
 <!-- Edit Student Modal -->
 <div class="modal fade" id="editModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -687,8 +605,4 @@ if (addStudentIdField) {
     });
 }
 </script>
-<script src="../assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
-<script src="../assets/js/theme-toggle.js"></script>
-<script src="../assets/js/app.js?v=3"></script>
-</body>
-</html>
+<?php $page_scripts = ob_get_clean(); require '../includes/page_end.php'; ?>

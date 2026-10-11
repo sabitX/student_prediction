@@ -91,6 +91,13 @@ function setting($key, $default = null) {
     return ($value === null || $value === '') ? $default : $value;
 }
 
+// Can visitors create their own student accounts? Off unless env.php turns
+// it on: an open form lets anyone claim any Student ID with an unverified
+// email. When off, the admin office creates students (Students page).
+function registration_open() {
+    return (bool)setting('ALLOW_SELF_REGISTRATION', false);
+}
+
 // ── Signed-in account still valid? ──────────────────────────────────────
 // Every page loads the session before this file, so this runs on every
 // signed-in request. The session ends at once if the account was deleted,

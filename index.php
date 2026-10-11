@@ -11,6 +11,13 @@ if (isset($_SESSION['user_id'])) {
 <?php
 // index.php — SPTS Public Landing Page
 // Nilai University — EC2320 Summative Project
+
+// Show "Register" only when self-registration is on (see registration_open()
+// in config/config.php). Read straight from env.php so this public page
+// doesn't need a database connection.
+$env_settings      = is_file(__DIR__ . '/config/env.php') ? require __DIR__ . '/config/env.php' : [];
+$registration_open = !empty($env_settings['ALLOW_SELF_REGISTRATION']);
+unset($env_settings);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -438,9 +445,11 @@ if (isset($_SESSION['user_id'])) {
         <a href="auth/login.php" class="btn-nav-primary">
             <i class="bi bi-person me-1"></i>Login
         </a>
+        <?php if ($registration_open): ?>
         <a href="auth/register.php" class="btn-nav-secondary">
             <i class="bi bi-person-plus me-1"></i>Register
         </a>
+        <?php endif; ?>
     </div>
 </nav>
 

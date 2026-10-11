@@ -37,7 +37,7 @@
 3. Admin → **Semesters**: add the semester, *Set Active* (exactly one active semester).
 4. Admin → **Staff**: add lecturers (and other admins if needed).
 5. Admin → **Subjects**: add subjects, assign one lecturer each.
-6. Students register (or admin adds them under **Students**).
+6. Admin adds students under **Students** (self-registration is off by default; see `ALLOW_SELF_REGISTRATION`).
 7. Admin → **Enrolments**: tick which students take each subject this semester.
 
 ### A3. Authentication workflow

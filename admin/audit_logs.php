@@ -13,7 +13,7 @@ $filter_actor  = (int)($_GET['actor'] ?? 0);
 // Filter choices are the action types actually present in the log.
 $action_types  = array_column(mysqli_fetch_all(mysqli_query($conn, "SELECT DISTINCT action FROM audit_logs ORDER BY action"), MYSQLI_ASSOC), 'action');
 $filter_action = in_array($_GET['action'] ?? '', $action_types, true) ? $_GET['action'] : '';
-$search        = trim($_GET['q'] ?? '');
+$search        = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
 
 $where  = [];
 $types  = '';

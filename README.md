@@ -41,7 +41,7 @@ Back up the database, then run `database/migrations/001_fault_fixes.sql` and the
    - **Staff**: add lecturer accounts.
    - **Subjects**: add subjects and assign a lecturer to each.
    - **Enrolments**: choose which students take each subject this semester.
-3. Students register via the Register page, or the admin adds them under **Students**.
+3. The admin adds students under **Students**. (The public Register page is off unless `ALLOW_SELF_REGISTRATION` is set to `true` in `config/env.php`; it can't verify who owns an email or Student ID.)
 
 The `tools/` scripts disable themselves once an admin, lecturer or subject exists.
 

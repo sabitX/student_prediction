@@ -12,6 +12,10 @@ Options -Indexes
     Require all denied
 </FilesMatch>
 
+# The live site is deployed as a git checkout: never serve version-control
+# data. (FilesMatch above only sees file names, not a ".git" folder.)
+RedirectMatch 404 /\.git(/|$)
+
 <IfModule mod_headers.c>
     # Don't advertise the PHP version.
     Header always unset X-Powered-By
@@ -29,8 +33,10 @@ Options -Indexes
     # use inline <script>/<style> blocks and onclick handlers.
     Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 
-    # Only over HTTPS: tell browsers to always use HTTPS for a year.
-    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on'"
+    # Only over HTTPS: tell browsers to always use HTTPS for a year. Behind
+    # a TLS-terminating proxy (e.g. alwaysdata) %{HTTPS} isn't set, so the
+    # proxy's X-Forwarded-Proto counts too.
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on' || %{HTTP:X-Forwarded-Proto} == 'https'"
 
     # Static assets can be cached; pages are sent no-store by PHP.
     <FilesMatch "\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?)$">

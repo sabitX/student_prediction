@@ -44,8 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!csrf_verify()) {
         $error = "Your session expired. Please try again.";
     } else {
-    $email = trim($_POST['email']);
-    $password = $_POST['password'];
+    $email    = is_string($_POST['email'] ?? null) ? trim($_POST['email']) : '';
+    $password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
 
     if (empty($email) || empty($password)) {
         $error = "Please enter both email and password.";
@@ -96,6 +96,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $error = "Invalid email or password.";
             }
         } else {
+            // No such account: still do one bcrypt check (against a hash of
+            // a random string), so the response takes as long as a wrong
+            // password and timing can't reveal which emails are registered.
+            password_verify($password, '$2y$10$r4.5BQH5Hx.IC8JOjkH38O9LjWbS/dkqJdjdwoJDqeY8UR8Yj0Cjy');
             login_record_failed_attempt($conn, $email);
             $error = "Invalid email or password.";
         }
@@ -360,7 +364,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <?php else: ?>
         <div class="text-center" style="font-size: 0.85rem;">
             <span class="text-muted">Don't have an account?</span>
-            <a href="register.php" class="link-custom">Register here</a>
+            <?php if (registration_open()): ?>
+                <a href="register.php" class="link-custom">Register here</a>
+            <?php else: ?>
+                <span class="text-muted">Contact the admin office.</span>
+            <?php endif; ?>
         </div>
         <div class="text-center mt-2" style="font-size: 0.8rem;">
             <a href="login.php?portal=staff" class="link-custom"><i class="bi bi-shield-lock me-1"></i>Staff & Admin sign in</a>

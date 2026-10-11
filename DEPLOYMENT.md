@@ -33,9 +33,11 @@ Use this list when moving SPTS from a development XAMPP install to a server that
   - `TIMEZONE` = `Asia/Kuala_Lumpur`
   - database host, name, user and password
   - `APP_URL`: the site's public address, e.g. `https://spts.nilai.edu.my`. It's used for the sign-in link in emails.
+  - `ALLOW_SELF_REGISTRATION`: leave `false`. Students are then added by the admin office; an open Register page would let anyone claim any Student ID.
   - **Email (`MAIL_*`)**, so new lecturers get their sign-in details automatically. With Gmail: turn on 2-Step Verification for the sending account, create an **App Password** (Google Account → Security → App passwords), then set `MAIL_HOST` `smtp.gmail.com`, `MAIL_PORT` `587`, `MAIL_ENCRYPTION` `tls`, the Gmail address as `MAIL_USERNAME` and `MAIL_FROM`, and the app password as `MAIL_PASSWORD`. Approve one test account request to confirm the email arrives. Without email settings, everything still works: the admin sees the temporary password on screen instead.
 - [ ] `config/env.php` must **not** go into version control; `.gitignore` already excludes it. Restrict its file permissions so only the web server user can read it.
 - [ ] If the folder is not served at `/student_prediction/`, update the `ErrorDocument` path in `.htaccess`.
+- [ ] **Deploying with git?** Keep the repository data out of the web folder, so `/.git/` can never be downloaded: `git clone --separate-git-dir ~/spts.git <repo> ~/www/student_prediction` (or, for an existing checkout, `git init --separate-git-dir ~/spts.git` inside it). `.htaccess` also answers 404 for `/.git`, as a second line of defence.
 
 ## 3. Database
 
