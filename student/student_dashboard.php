@@ -3,6 +3,8 @@ require '../includes/session_check.php';
 require '../config/config.php';
 require '../includes/semester.php';
 require '../includes/grading.php';
+require '../includes/early_warning.php';
+require '../includes/obe.php';
 
 $user_id = $_SESSION['user_id'];
 
@@ -31,7 +33,7 @@ $student_db_id = $student['id'];
 // Every subject the student is enrolled in for the active semester, with
 // whatever marks exist so far (a subject with no marks yet shows Pending).
 $semester_id = get_active_semester_id($conn);
-$stmt_perf = mysqli_prepare($conn, "SELECT sub.subject_name, sub.subject_code,
+$stmt_perf = mysqli_prepare($conn, "SELECT sub.id AS subject_id, sub.subject_name, sub.subject_code,
                                      p.assignment, p.midterm, p.final_exam, p.attendance,
                                      pr.predicted_status, pr.total_score
                                      FROM student_enrollments e
@@ -58,6 +60,21 @@ $graded_count = count($scores);
 $avg_score    = $graded_count ? number_format(array_sum($scores) / $graded_count, 2) . '%' : '—';
 $best_score   = $graded_count ? number_format(max($scores), 2) . '%' : '—';
 $worst_score  = $graded_count ? number_format(min($scores), 2) . '%' : '—';
+
+// Mid-semester outlook: subjects with some marks but no final exam yet
+// (includes/early_warning.php), keyed by subject.
+$outlook = [];
+foreach (early_warnings($conn, $semester_id, 'student', $student_db_id) as $ew) {
+    if (!$ew['analysis']['final_marked']) {
+        $outlook[(int)$ew['subject_id']] = $ew;
+    }
+}
+
+// Learning outcomes of this semester's subjects, and cumulative PLO
+// attainment for the radar chart (includes/obe.php).
+$outcomes = obe_subject_outcomes($conn, array_column($rows, 'subject_id'));
+$plo_attainment = obe_student_plo($conn, $student_db_id);
+$plo_has_data   = count(array_filter(array_column($plo_attainment, 'score'), fn($s) => $s !== null)) > 0;
 
 // Mark cell: "—" when that component hasn't been assessed yet.
 function mark_cell($v) {
@@ -219,6 +236,78 @@ require '../includes/page_start.php';
         </div>
     </div>
 
+    <!-- Learning outcomes + mid-semester outlook -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-5">
+            <div class="dashboard-card">
+                <div class="card-header-title">
+                    <i class="bi bi-bullseye text-primary"></i>
+                    Programme Learning Outcomes
+                </div>
+                <?php if ($plo_has_data): ?>
+                    <div style="position:relative; height:280px;">
+                        <canvas id="ploRadar" aria-label="Programme learning outcome attainment chart" role="img"></canvas>
+                    </div>
+                    <div class="d-flex flex-wrap mt-2" style="font-size:0.78rem; column-gap:14px; color:#475569;">
+                        <?php foreach ($plo_attainment as $plo): ?>
+                            <span><strong><?php echo h($plo['plo_code']); ?></strong> <?php echo h($plo['plo_title']); ?></span>
+                        <?php endforeach; ?>
+                    </div>
+                    <p class="text-muted mb-0 mt-2" style="font-size:0.78rem;">
+                        Your average score on the course outcomes linked to each PLO, across all semesters. The dashed line is the score needed to attain it.
+                    </p>
+                <?php else: ?>
+                    <div class="empty-state">
+                        <i class="bi bi-bullseye"></i>
+                        <p class="mb-0" style="font-size:0.88rem;">Your outcome attainment appears once your lecturers have entered marks.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="dashboard-card">
+                <div class="card-header-title">
+                    <i class="bi bi-binoculars text-primary"></i>
+                    Mid-Semester Outlook
+                </div>
+                <?php if ($outlook): ?>
+                    <p class="text-muted" style="font-size:0.8rem;">
+                        Projected from the marks you have so far, before the final exam. Not an official result.
+                    </p>
+                    <?php foreach ($outlook as $ew): $a = $ew['analysis']; ?>
+                    <div class="border-top pt-3 mt-3">
+                        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                            <div>
+                                <strong style="color:#1A3A5C;"><?php echo h($ew['subject_code']); ?></strong>
+                                <span class="text-muted" style="font-size:0.82rem;"><?php echo h($ew['subject_name']); ?></span>
+                            </div>
+                            <span class="<?php echo risk_badge_class($a['level']); ?>"><?php echo risk_label($a['level']); ?></span>
+                        </div>
+                        <div class="d-flex flex-wrap gap-3 mt-1" style="font-size:0.84rem; color:#475569;">
+                            <span>Projected total: <strong><?php echo ew_pct($a['projected']); ?></strong>
+                                (<span class="<?php echo status_badge_class($a['projected_status']); ?>"><?php echo h($a['projected_status']); ?></span>)</span>
+                            <?php if ($a['min_final'] !== null): ?>
+                                <span>Final exam needed to pass:
+                                    <strong><?php echo $a['min_final'] > 100 ? 'over 100%' : ew_pct($a['min_final']); ?></strong></span>
+                            <?php endif; ?>
+                        </div>
+                        <?php echo render_risk_reasons($a['reasons']); ?>
+                    </div>
+                    <?php endforeach; ?>
+                    <?php if (array_filter($outlook, fn($ew) => $ew['analysis']['level'] !== 'ok')): ?>
+                    <a href="mentorship.php" class="btn btn-sm btn-primary-custom mt-3"><i class="bi bi-people me-1"></i>Book a mentorship session</a>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <div class="empty-state">
+                        <i class="bi bi-binoculars"></i>
+                        <p class="mb-0" style="font-size:0.88rem;">No subjects are waiting on a final exam with marks so far. Your outlook appears here once coursework marks are entered.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
     <!-- Performance Table -->
     <div class="dashboard-card p-0 overflow-hidden">
         <div class="p-4 border-bottom">
@@ -256,6 +345,20 @@ require '../includes/page_start.php';
                     <td class="ps-4">
                         <strong style="color:#1A3A5C;"><?php echo h($row['subject_code']); ?></strong><br>
                         <span class="text-muted" style="font-size:0.8rem;"><?php echo h($row['subject_name']); ?></span>
+                        <div>
+                        <?php foreach ($outcomes[(int)$row['subject_id']] ?? [] as $clo):
+                            $clo_score = obe_clo_score($row, $clo);
+                            if ($clo_score === null) {
+                                [$pill, $mark, $state] = [status_badge_class(null), '', 'not assessed yet'];
+                            } elseif ($clo_score >= $clo['threshold']) {
+                                [$pill, $mark, $state] = [status_badge_class('Excellent'), ' ✓', 'attained (' . ew_pct($clo_score) . ')'];
+                            } else {
+                                [$pill, $mark, $state] = [status_badge_class('At Risk'), ' ✗', 'not attained (' . ew_pct($clo_score) . ', needs ' . ew_pct($clo['threshold']) . ')'];
+                            }
+                        ?>
+                            <span class="<?php echo $pill; ?> clo-pill" title="<?php echo h(obe_clo_label($clo) . ' — ' . $state); ?>"><?php echo h($clo['clo_code'] . $mark); ?></span>
+                        <?php endforeach; ?>
+                        </div>
                     </td>
                     <td class="text-center"><?php echo mark_cell($row['assignment']); ?></td>
                     <td class="text-center"><?php echo mark_cell($row['midterm']); ?></td>
@@ -279,6 +382,10 @@ require '../includes/page_start.php';
                         <span class="<?php echo $badge; ?>">
                             <?php echo h($status); ?>
                         </span>
+                        <?php if (!$has_score && isset($outlook[(int)$row['subject_id']])):
+                            $a = $outlook[(int)$row['subject_id']]['analysis']; ?>
+                            <div class="text-muted mt-1" style="font-size:0.72rem;">Projected <?php echo ew_pct($a['projected']); ?></div>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -301,6 +408,46 @@ require '../includes/page_start.php';
 ob_start();
 ?>
 <?php require '../includes/onboarding.php'; ?>
+<?php if ($plo_has_data): ?>
+<script src="../assets/vendor/chartjs/chart.umd.min.js"></script>
+<script>
+(function () {
+    const dark  = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const muted = dark ? '#94A3B8' : '#64748B';
+    const grid  = dark ? '#334155' : '#E2E8F0';
+    const teal  = dark ? '#3CC8CD' : '#0D7377';
+    Chart.defaults.font.family = "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif";
+    const plos = <?php echo json_encode(array_values(array_map(fn($p) => [
+        'code'   => $p['plo_code'],
+        'title'  => $p['plo_code'] . ' ' . $p['plo_title'],
+        'score'  => $p['score'],
+        'target' => (float)$p['target_threshold'],
+    ], $plo_attainment)), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    new Chart(document.getElementById('ploRadar'), {
+        type: 'radar',
+        data: {
+            labels: plos.map(p => p.code),
+            datasets: [
+                { label: 'My score', data: plos.map(p => p.score), borderColor: teal, backgroundColor: teal + '33', pointBackgroundColor: teal, borderWidth: 2, spanGaps: true },
+                { label: 'Target', data: plos.map(p => p.target), borderColor: muted, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { r: { min: 0, max: 100, ticks: { stepSize: 25, color: muted, backdropColor: 'transparent', font: { size: 10 } },
+                           grid: { color: grid }, angleLines: { color: grid }, pointLabels: { color: muted, font: { size: 12, weight: '600' } } } },
+            plugins: {
+                legend: { position: 'bottom', labels: { color: muted, usePointStyle: true, font: { size: 11 } } },
+                tooltip: { callbacks: {
+                    title: items => plos[items[0].dataIndex].title,
+                    label: c => ` ${c.dataset.label}: ${c.raw === null ? 'not assessed yet' : c.raw + '%'}` } }
+            }
+        }
+    });
+})();
+</script>
+<?php endif; ?>
 <script>
 window.addEventListener('load', () => {
     document.querySelectorAll('.progress-bar[data-width]').forEach(bar => {

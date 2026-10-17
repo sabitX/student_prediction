@@ -350,3 +350,29 @@ button.is-submitting { opacity: 0.7; cursor: progress; }
     color: #FECACA;
 }
 @media print { .spts-notice { display: none !important; } }
+
+/* ── Learning outcomes and early warning ───────────────────────────────
+   CLO pills reuse the status badge colours, smaller. Risk reasons are the
+   plain-language list from includes/early_warning.php. */
+.clo-pill {
+    font-size: 0.68rem;
+    padding: 0.2em 0.55em;
+    margin: 2px 2px 0 0;
+    cursor: help;
+}
+.risk-reasons {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0 0;
+    font-size: 0.82rem;
+}
+.risk-reasons li {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    padding: 2px 0;
+}
+.risk-reasons .bi-exclamation-octagon-fill { color: #B04A4A; }
+.risk-reasons .bi-exclamation-triangle-fill { color: #B8862E; }
+[data-bs-theme="dark"] .risk-reasons .bi-exclamation-octagon-fill { color: #D27575; }
+[data-bs-theme="dark"] .risk-reasons .bi-exclamation-triangle-fill { color: #D2A24E; }

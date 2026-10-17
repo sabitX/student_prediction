@@ -25,7 +25,7 @@ Total Score = Assignment × 20% + Midterm × 30% + Final Exam × 40% + Attendanc
 
 ## 2. Database Entities
 
-There are 12 tables and 1 view:
+There are 16 tables and 2 views:
 - `users`
 - `students`
 - `semesters`
@@ -38,7 +38,12 @@ There are 12 tables and 1 view:
 - `password_resets`
 - `login_attempts`
 - `account_requests`
+- `plos` — Programme Learning Outcomes, with the score needed to attain one and the class KPI
+- `subject_clos` — CLO1–CLO4 per subject: description, Bloom's level, linked PLO
+- `clo_assessments` — which CLO each mark component (assignment, midterm, final exam, attendance) assesses
+- `cqi_actions` — a lecturer's Continuous Quality Improvement action for a CLO that missed its KPI
 - `predictions` (a **view**: each result is calculated from the marks in `performance` when read, so it is never stored)
+- `early_risk_predictions` (a **view**: the weighted average of the marks entered so far, the final-exam score needed to pass, and the attendance bar — available before the final exam is marked)
 
 The full attributes, keys, relationships, delete rules and a ready-to-render ERD are in [SYSTEM_WORKFLOW_AND_ERD.md](SYSTEM_WORKFLOW_AND_ERD.md). The importable schema is [database/schema.sql](database/schema.sql).
 
@@ -134,6 +139,8 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
 - **Charts:**
   - status-distribution doughnut for the active semester
   - average score for each active subject, with each bar coloured by status
+  - **PLO attainment**: share of student CLO results this semester that met each PLO's target, against the class KPI
+- **CLOs below target (CQI):** every CLO under its class KPI this semester, and whether the lecturer has logged an action.
 - **Student table:** subjects enrolled and average score this semester. It has live search and a link to each profile.
 
 ### 5.2 Semesters — [manage_semesters.php](admin/manage_semesters.php)
@@ -147,7 +154,9 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
   - Code must be 3–20 letters or digits and is stored in upper case; the name is required.
   - A lecturer is optional.
   - An existing code is rejected with a clear message: use Edit, or Restore if it is archived.
-- **Edit** (modal): rename the subject and change or remove its lecturer (one lecturer per subject).
+- **Credit hours** (1–6, steps of 0.5) on Add and Edit; the transcript's GPA uses them.
+- **Edit** (modal): rename the subject, change its credit hours, and change or remove its lecturer (one lecturer per subject).
+- **Outcomes** ([subject_outcomes.php](admin/subject_outcomes.php)): word CLO1–CLO4, tag each with a Bloom's level and a PLO, and choose which CLO each mark component assesses. Shows this semester's attainment per CLO. New subjects start with default outcomes.
 - **Unassign** lecturer, **Archive** (soft delete), and **Restore** from the Archived Subjects list.
 - Archived subjects are hidden from lecturers, students, the CSV upload and the dashboard chart; their history is kept.
 
@@ -193,6 +202,8 @@ Sidebar: Dashboard · Enter Marks · CSV Upload · Audit Trail · Change Passwor
 
 ### 6.1 Dashboard — [lecturer_dashboard.php](lecturer/lecturer_dashboard.php)
 - **Stats** for the lecturer's active subjects and enrolled students this semester: total, passing, at risk, failing.
+- **Mid-semester early warnings:** students whose final exam isn't marked yet and whose marks so far raise a flag, most serious first, with the projected total, the final-exam score needed to pass, and the reasons in plain words (attendance below 80% / BE, a final-exam target above 75%, a projection below 60%, assignment or midterm 1+ standard deviations below the class average).
+- **Learning outcome attainment & CQI:** for each subject, the share of assessed students attaining each CLO against the KPI. A CLO below the KPI is marked "CQI required"; the lecturer records a root cause and remedial plan (one per CLO per semester, editable, audited).
 - **Mentorship:**
   - Pending requests: **Approve**, **Reschedule**, **Decline**.
   - Upcoming approved sessions: **Reschedule**, **Cancel**, and **Complete** once the session time has passed.
@@ -242,7 +253,9 @@ Sidebar: Dashboard · What-If Calculator · Mentorship · My Transcript · Chang
 
 ### 7.1 Dashboard — [student_dashboard.php](student/student_dashboard.php)
 - **Profile card** and **stat tiles:** subjects, average, best and lowest score. Only graded subjects count; a real 0 counts; "—" if none are graded.
-- **Results for the active semester:** every enrolled subject, marks so far ("—" if not assessed), an animated total bar, and the status (Pending until complete).
+- **Results for the active semester:** every enrolled subject, marks so far ("—" if not assessed), an animated total bar, and the status (Pending until complete, with the projected total underneath). Each subject shows its CLO pills: attained ✓, not attained ✗, or not assessed yet.
+- **Programme Learning Outcomes:** radar chart of the student's cumulative score on each PLO against its target.
+- **Mid-semester outlook:** for each subject without a final-exam mark, the projected total, the final-exam score needed to pass, and the reasons for any warning, with a link to book mentorship.
 
 ### 7.2 What-If Calculator — [predict.php](student/predict.php)
 - Lists only the student's own **enrolled, active** subjects this semester.
@@ -251,10 +264,12 @@ Sidebar: Dashboard · What-If Calculator · Mentorship · My Transcript · Chang
   - the projected total, bar, status, advice and weighted breakdown
   - the **minimum final-exam score needed to pass**
   - a warning pop-up if the projection is At Risk or Fail
+  - **learning outcome impact**: each CLO's score and whether it is attained, updating as the final-exam value changes
+  - a **BE warning** when attendance is below 80%
 - Nothing is saved.
 
 ### 7.3 Mentorship — [mentorship.php](student/mentorship.php)
-- At-Risk / Fail alerts for this semester.
+- At-Risk / Fail alerts for this semester, and **early warnings** for subjects whose final exam isn't marked yet, with the reasons.
 - **Find a mentor** for an enrolled subject. The list shows:
   - the subject's lecturer
   - **peer mentors**: students flagged by the admin who scored Excellent in that subject
@@ -269,12 +284,13 @@ Sidebar: Dashboard · What-If Calculator · Mentorship · My Transcript · Chang
 
 ### 7.4 Transcript — [transcript.php](student/transcript.php)
 - Printable (Print / Save as PDF). Header shows student details, programme, **intake** (first semester) and **number of semesters**, all taken from the data.
-- **One block per semester:** code, course, credits (EC2320 = 4, others 3), grade, GP, Pass/Fail and Remarks.
-- **Remarks:** "At Risk" for passing scores of 50–59. "Pending", shown with the grade **GP**, for incomplete marks, which are excluded from the GPA.
+- **One block per semester:** code, course, credits (from the subject), grade, GP, Pass/Fail and Remarks.
+- **Remarks:** "BE" (Barred from Examination) when attendance is below 80%; otherwise "At Risk" for passing scores of 50–59. "Pending", shown with the grade **GP**, for incomplete marks, which are excluded from the GPA.
 - **Summary for each semester:**
   - total weightage and grade points
   - GPA = Σ(GP × credits) ÷ Σ(credits)
   - cumulative weightage, grade points and **CGPA**
+- **PLO attainment (cumulative):** score, target and Attained / Not Attained for each PLO.
 - Grade scale: A+ ≥90, A ≥80, A- ≥75, B+ ≥70, B ≥65, B- ≥60, C+ ≥55, C ≥50, D+ ≥45, D ≥40, F <40.
 
 ---
@@ -287,7 +303,9 @@ Sidebar: Dashboard · What-If Calculator · Mentorship · My Transcript · Chang
 | `session.php` / `session_check.php` | Hardened session start, idle timeout, folder-based role gate, forced password change |
 | `sidebar.php`, `page_start.php` / `page_end.php` | Shared navigation, and the page frame used by the newer admin pages |
 | `csrf.php` | One token per session, timing-safe check |
-| `grading.php` | Formula, status thresholds, colours |
+| `grading.php` | Formula, component weights, status thresholds, colours |
+| `early_warning.php` | Mid-semester projection (coursework blended with the student's earlier average, or the class average), attendance bar, class comparison, plain-language risk reasons |
+| `obe.php` | Default CLOs, CLO and PLO attainment for a student, a class and the institution, CQI actions |
 | `marks.php` | Mark parsing and validation, enrolment check, the shared save routine with audit |
 | `mentorship.php` | Mentor eligibility, date and clash checks, status transitions |
 | `academic_level.php` | Student ID format, level detection, programme catalogue, profile validation |

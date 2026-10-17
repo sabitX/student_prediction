@@ -49,6 +49,20 @@ while ($row = mysqli_fetch_assoc($subject_chart)) {
     $subject_statuses[] = predicted_status($avg);
 }
 
+// Programme Learning Outcome attainment across all active subjects this
+// semester, and the CLOs that missed their class target (includes/obe.php).
+require '../includes/obe.php';
+$plo_institution = obe_institution_plo($conn, $semester_id);
+$plo_has_data    = array_sum(array_column($plo_institution, 'results')) > 0;
+$cqi_list = [];
+foreach (mysqli_fetch_all(mysqli_query($conn, "SELECT id, subject_code FROM subjects WHERE is_archived = 0 ORDER BY subject_code"), MYSQLI_ASSOC) as $sub) {
+    foreach (obe_cohort_clo($conn, (int)$sub['id'], $semester_id) as $clo) {
+        if ($clo['cqi_required']) {
+            $cqi_list[] = ['subject_code' => $sub['subject_code'], 'subject_id' => (int)$sub['id']] + $clo;
+        }
+    }
+}
+
 // Per-student summary for the active semester, one page at a time (see
 // includes/pagination.php). Subqueries (not two LEFT JOINs) so the counts
 // and averages aren't multiplied by each other.
@@ -208,6 +222,62 @@ require '../includes/page_start.php';
                     </div>
                 <?php else: ?>
                     <div class="alert alert-info mt-3" style="font-size:0.88rem; background:#F8FAFC; border:none;">No subject score data yet.</div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outcome-Based Education -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-7">
+            <div class="dashboard-card">
+                <div class="card-header-title">
+                    <i class="bi bi-mortarboard-fill text-primary"></i>Programme Learning Outcome Attainment
+                </div>
+                <?php if ($plo_has_data): ?>
+                    <div style="position: relative; height: 260px; width: 100%;">
+                        <canvas id="ploChart" role="img" aria-label="Share of student results attaining each programme learning outcome"></canvas>
+                    </div>
+                    <p class="text-muted mb-0 mt-2" style="font-size:0.78rem;">
+                        <?php echo implode(' · ', array_map(fn($p) => '<strong>' . h($p['plo_code']) . '</strong> ' . h($p['plo_title']), $plo_institution)); ?><br>
+                        Share of student CLO results this semester that reached each PLO's target. The marker is the class KPI.
+                    </p>
+                <?php else: ?>
+                    <div class="alert alert-info mt-3" style="font-size:0.88rem; background:#F8FAFC; border:none;">No outcome data yet.</div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="dashboard-card">
+                <div class="card-header-title">
+                    <i class="bi bi-arrow-repeat text-primary"></i>CLOs Below Target (CQI)
+                </div>
+                <?php if ($cqi_list): ?>
+                    <div style="max-height:260px; overflow-y:auto;">
+                    <table class="table mb-0" style="font-size:0.84rem;">
+                        <tbody>
+                        <?php foreach ($cqi_list as $clo): ?>
+                            <tr>
+                                <td style="padding:10px 8px;">
+                                    <a href="subject_outcomes.php?id=<?php echo $clo['subject_id']; ?>" class="fw-bold text-decoration-none"><?php echo h($clo['subject_code'] . ' ' . $clo['clo_code']); ?></a>
+                                    <span class="text-muted" style="font-size:0.75rem;"><?php echo h($clo['plo_code']); ?></span>
+                                </td>
+                                <td class="text-end" style="padding:10px 8px;">
+                                    <span class="<?php echo status_badge_class('Fail'); ?>"><?php echo number_format($clo['pct'], 0); ?>% / <?php echo number_format($clo['kpi'], 0); ?>%</span>
+                                </td>
+                                <td class="text-end" style="padding:10px 8px; font-size:0.75rem;">
+                                    <?php echo $clo['cqi'] ? '<span class="text-success"><i class="bi bi-check2-circle"></i> Action logged</span>' : '<span class="text-muted">No action yet</span>'; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    </div>
+                <?php else: ?>
+                    <div class="empty-state">
+                        <i class="bi bi-check2-circle"></i>
+                        <p class="mb-0" style="font-size:0.88rem;">Every assessed CLO meets its class target this semester.</p>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>
@@ -384,6 +454,43 @@ new Chart(barCtx, {
                     }`
                 }
             }
+        }
+    }
+});
+<?php endif; ?>
+
+// PLO attainment vs class KPI
+<?php if ($plo_has_data): ?>
+const plos = <?php echo json_encode(array_values(array_map(fn($p) => [
+    'code'  => $p['plo_code'],
+    'title' => $p['plo_code'] . ' ' . $p['plo_title'],
+    'pct'   => $p['pct'],
+    'kpi'   => (float)$p['cohort_kpi_pct'],
+    'n'     => $p['results'],
+], $plo_institution)), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+new Chart(document.getElementById('ploChart'), {
+    data: {
+        labels: plos.map(p => p.code),
+        datasets: [
+            { type: 'bar', label: 'Attained', data: plos.map(p => p.pct),
+              backgroundColor: plos.map(p => p.pct !== null && p.pct >= p.kpi ? sptsStatusColors['Excellent'] : sptsStatusColors['Fail']),
+              borderRadius: 6, maxBarThickness: 48 },
+            { type: 'line', label: 'Class KPI', data: plos.map(p => p.kpi), showLine: false,
+              pointStyle: 'line', pointRadius: 22, pointBorderWidth: 3, borderColor: sptsHeadingColor, backgroundColor: sptsHeadingColor }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%', font: { size: 11 }, color: sptsMutedColor }, grid: { color: sptsGridColor } },
+            x: { grid: { display: false }, ticks: { font: { size: 11 }, color: sptsMutedColor } }
+        },
+        plugins: {
+            legend: { position: 'bottom', labels: { color: sptsMutedColor, usePointStyle: true, font: { size: 11 } } },
+            tooltip: { callbacks: { title: items => plos[items[0].dataIndex].title,
+                                    label: c => c.dataset.type === 'line' ? ` KPI: ${c.raw}%`
+                : ` ${c.raw === null ? 'not assessed' : c.raw + '%'} of ${plos[c.dataIndex].n} results` } }
         }
     }
 });

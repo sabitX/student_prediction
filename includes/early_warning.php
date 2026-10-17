@@ -1,0 +1,209 @@
+<?php
+// ── Mid-semester early warning ──────────────────────────────────────────
+// The predictions view only has a result once all four marks are in, i.e.
+// after the final exam — too late to help. This file works from whatever
+// marks exist so far (the early_risk_predictions view, migration 009) and
+// says, in plain words, why a student is at risk while there is still time
+// to act. Used by the student dashboard, mentorship page and the lecturer
+// dashboard.
+//
+// Projection before the final exam is marked:
+//   current   = weighted average of the components marked so far (the view)
+//   prior     = the student's average total in earlier semesters, or this
+//               class's current average for a student with no history
+//   alpha     = coursework weight marked so far ÷ 0.60 (all coursework)
+//   projected = alpha × current + (1 − alpha) × prior
+// Early on (little marked) the projection leans on the prior; once all
+// coursework is in it is the student's own coursework average. This is a
+// simple shrinkage blend, not a fitted model — the thresholds below are
+// policy choices, kept here so they're easy to find and change.
+
+require_once __DIR__ . '/grading.php';
+
+const ATTENDANCE_BAR    = 80;    // below this: barred from the final exam (BE)
+const HIGH_FINAL_TARGET = 75;    // needing more than this in the final is flagged
+const Z_FLAG            = -1.0;  // this many standard deviations below the class average is flagged
+const COHORT_MIN_SIZE   = 5;     // fewer marked students: no class comparison
+
+// Weight of all coursework (everything except the final exam): 0.60.
+function coursework_weight_total() {
+    return 1 - MARK_WEIGHTS['final_exam'];
+}
+
+// Class averages and spread for one subject in one semester (cached).
+function ew_cohort_stats($conn, $subject_id, $semester_id) {
+    static $cache = [];
+    $key = "$subject_id:$semester_id";
+    if (!isset($cache[$key])) {
+        $stmt = mysqli_prepare($conn,
+            "SELECT COUNT(assignment) AS n_assignment, AVG(assignment) AS avg_assignment, STDDEV_POP(assignment) AS sd_assignment,
+                    COUNT(midterm)    AS n_midterm,    AVG(midterm)    AS avg_midterm,    STDDEV_POP(midterm)    AS sd_midterm,
+                    AVG(current_score) AS avg_current
+             FROM early_risk_predictions WHERE subject_id = ? AND semester_id = ?");
+        mysqli_stmt_bind_param($stmt, "ii", $subject_id, $semester_id);
+        mysqli_stmt_execute($stmt);
+        $cache[$key] = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+        mysqli_stmt_close($stmt);
+    }
+    return $cache[$key];
+}
+
+// Each student's average total in semesters that started before this one.
+// [student_id => average]; students with no earlier results are left out.
+function ew_prior_scores($conn, array $student_ids, $semester_id) {
+    $student_ids = array_values(array_unique(array_map('intval', $student_ids)));
+    if (!$student_ids) {
+        return [];
+    }
+    $marks = implode(',', array_fill(0, count($student_ids), '?'));
+    $stmt = mysqli_prepare($conn,
+        "SELECT pr.student_id, AVG(pr.total_score) AS avg_total
+         FROM predictions pr
+         JOIN semesters sem ON sem.id = pr.semester_id
+         WHERE pr.student_id IN ($marks)
+           AND sem.start_date < (SELECT start_date FROM semesters WHERE id = ?)
+         GROUP BY pr.student_id");
+    $params = [...$student_ids, (int)$semester_id];
+    mysqli_stmt_bind_param($stmt, str_repeat('i', count($params)), ...$params);
+    mysqli_stmt_execute($stmt);
+    $prior = [];
+    foreach (mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC) as $r) {
+        $prior[(int)$r['student_id']] = (float)$r['avg_total'];
+    }
+    mysqli_stmt_close($stmt);
+    return $prior;
+}
+
+function ew_pct($v) {
+    return rtrim(rtrim(number_format((float)$v, 1, '.', ''), '0'), '.') . '%';
+}
+
+// Analyses one early_risk_predictions row. $prior: the student's earlier
+// average, or null to use the class average. Returns the projection and a
+// list of reasons, each ['level' => 'danger'|'warning', 'text' => ...].
+function ew_analyse(array $row, $prior, array $cohort) {
+    $final_marked = $row['final_exam'] !== null;
+    $current      = (float)$row['current_score'];
+    $prior_source = $prior !== null ? 'history' : 'class';
+    if ($prior === null && $cohort['avg_current'] !== null) {
+        $prior = (float)$cohort['avg_current'];
+    }
+
+    if ($final_marked) {
+        $alpha     = 1.0;
+        $projected = $current;   // = the official total once all four are in
+    } else {
+        $alpha     = min(1.0, (float)$row['assessed_weight'] / coursework_weight_total());
+        $projected = $prior === null ? $current : $alpha * $current + (1 - $alpha) * $prior;
+    }
+    $projected = round($projected, 2);
+    $min_final = $row['min_final_to_pass'] === null ? null : (float)$row['min_final_to_pass'];
+    $barred    = $row['attendance'] !== null && (float)$row['attendance'] < ATTENDANCE_BAR;
+
+    $reasons = [];
+    if ($barred) {
+        $reasons[] = ['level' => 'danger', 'text' => 'Attendance is ' . ew_pct($row['attendance']) . ' — below the ' . ATTENDANCE_BAR . '% needed to sit the final exam (BE).'];
+    }
+    if (!$final_marked && $min_final !== null) {
+        if ($min_final > 100) {
+            $reasons[] = ['level' => 'danger', 'text' => 'Cannot reach ' . PASS_MARK . '% even with 100% in the final exam.'];
+        } elseif ($min_final > HIGH_FINAL_TARGET) {
+            $reasons[] = ['level' => 'warning', 'text' => 'Needs at least ' . ew_pct($min_final) . ' in the final exam to pass.'];
+        }
+    }
+    if ($projected < 50) {
+        $reasons[] = ['level' => 'danger', 'text' => ($final_marked ? 'Total' : 'Projected total') . ' is ' . ew_pct($projected) . ' — in the Fail band.'];
+    } elseif ($projected < PASS_MARK) {
+        $reasons[] = ['level' => 'warning', 'text' => ($final_marked ? 'Total' : 'Projected total') . ' is ' . ew_pct($projected) . ' — below the ' . PASS_MARK . '% pass mark.'];
+    }
+    foreach (['assignment' => 'Assignment', 'midterm' => 'Midterm'] as $key => $label) {
+        if ($row[$key] === null || (int)$cohort["n_$key"] < COHORT_MIN_SIZE || (float)$cohort["sd_$key"] <= 0) {
+            continue;
+        }
+        $z = ((float)$row[$key] - (float)$cohort["avg_$key"]) / (float)$cohort["sd_$key"];
+        if ($z <= Z_FLAG) {
+            $reasons[] = ['level' => 'warning', 'text' => "$label (" . ew_pct($row[$key]) . ') is ' . number_format(abs($z), 1)
+                . ' standard deviations below the class average of ' . ew_pct($cohort["avg_$key"]) . '.'];
+        }
+    }
+
+    $levels = array_column($reasons, 'level');
+    return [
+        'final_marked'     => $final_marked,
+        'current'          => $current,
+        'projected'        => $projected,
+        'projected_status' => predicted_status($projected),
+        'prior'            => $prior,
+        'prior_source'     => $prior_source,
+        'alpha'            => $alpha,
+        'min_final'        => $min_final,
+        'barred'           => $barred,
+        'reasons'          => $reasons,
+        'level'            => in_array('danger', $levels, true) ? 'critical' : ($levels ? 'warning' : 'ok'),
+    ];
+}
+
+// Early-warning rows for one semester, analysed, for either one student
+// ($by = 'student', $id = students.id) or every student in one lecturer's
+// subjects ($by = 'lecturer', $id = users.id). Archived subjects are left out.
+function early_warnings($conn, $semester_id, $by, $id) {
+    $scope = $by === 'lecturer'
+        ? "JOIN lecturer_subjects ls ON ls.subject_id = r.subject_id AND ls.user_id = ?"
+        : "AND r.student_id = ?";
+    $sql = "SELECT r.*, sub.subject_code, sub.subject_name, s.student_id AS student_code, u.full_name
+            FROM early_risk_predictions r
+            JOIN subjects sub ON sub.id = r.subject_id AND sub.is_archived = 0
+            JOIN students s ON s.id = r.student_id
+            JOIN users u ON u.id = s.user_id
+            " . ($by === 'lecturer' ? $scope : '') . "
+            WHERE r.semester_id = ? " . ($by === 'lecturer' ? '' : $scope) . "
+            ORDER BY sub.subject_code, u.full_name";
+    $stmt = mysqli_prepare($conn, $sql);
+    if ($by === 'lecturer') {
+        mysqli_stmt_bind_param($stmt, "ii", $id, $semester_id);
+    } else {
+        mysqli_stmt_bind_param($stmt, "ii", $semester_id, $id);
+    }
+    mysqli_stmt_execute($stmt);
+    $rows = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
+    mysqli_stmt_close($stmt);
+
+    $prior = ew_prior_scores($conn, array_column($rows, 'student_id'), $semester_id);
+    foreach ($rows as &$row) {
+        $cohort = ew_cohort_stats($conn, (int)$row['subject_id'], (int)$semester_id);
+        $row['analysis'] = ew_analyse($row, $prior[(int)$row['student_id']] ?? null, $cohort);
+    }
+    unset($row);
+    return $rows;
+}
+
+// Badge classes (assets/css/app.css) for a risk level.
+function risk_badge_class($level) {
+    return status_badge_class(match ($level) {
+        'critical' => 'Fail',
+        'warning'  => 'At Risk',
+        default    => 'Pass',
+    });
+}
+
+function risk_label($level) {
+    return match ($level) {
+        'critical' => 'Critical',
+        'warning'  => 'Early Warning',
+        default    => 'On Track',
+    };
+}
+
+// The reasons as a short list (styled by .risk-reasons in app.css).
+function render_risk_reasons(array $reasons) {
+    if (!$reasons) {
+        return '';
+    }
+    $html = '<ul class="risk-reasons">';
+    foreach ($reasons as $r) {
+        $icon  = $r['level'] === 'danger' ? 'bi-exclamation-octagon-fill' : 'bi-exclamation-triangle-fill';
+        $html .= '<li><i class="bi ' . $icon . '" aria-hidden="true"></i><span>' . h($r['text']) . '</span></li>';
+    }
+    return $html . '</ul>';
+}
+?>

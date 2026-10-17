@@ -2,6 +2,8 @@
 require '../includes/session_check.php';
 require '../config/config.php';
 require '../includes/semester.php';
+require '../includes/early_warning.php';
+require '../includes/obe.php';
 
 $user_id = $_SESSION['user_id'];
 
@@ -25,11 +27,13 @@ mysqli_stmt_close($stmt_student);
 // without a final score it shows "GP" (Grades Pending) and is excluded
 // from GPA — it is never treated as a score of 0.
 $stmt_perf = mysqli_prepare($conn, "SELECT sem.id AS semester_id, sem.semester_name, sem.start_date,
-                                            sub.subject_name, sub.subject_code,
-                                            pr.total_score, pr.predicted_status
+                                            sub.subject_name, sub.subject_code, sub.credit_hours,
+                                            p.attendance, pr.total_score, pr.predicted_status
                                      FROM student_enrollments e
                                      JOIN semesters sem ON sem.id = e.semester_id
                                      JOIN subjects sub ON sub.id = e.subject_id
+                                     LEFT JOIN performance p ON p.student_id = e.student_id
+                                          AND p.subject_id = e.subject_id AND p.semester_id = e.semester_id
                                      LEFT JOIN predictions pr ON pr.student_id = e.student_id
                                           AND pr.subject_id = e.subject_id AND pr.semester_id = e.semester_id
                                      WHERE e.student_id = ?
@@ -52,25 +56,25 @@ function gradeFromScore($score) {
     return ['F', 0.00];
 }
 
-// Credit hours per subject; everything not listed is 3.
-$credit_map = ['EC2320' => 4.00];
-
 // Build one block per semester with its own GPA plus the running
 // (cumulative) totals up to and including that semester.
 // BR-30: GPA = Σ(GP × Credit Hours) ÷ Σ(Credit Hours of graded subjects)
+// Credit hours come from the subject (set by the admin on Subjects).
 $semesters = [];
 while ($row = mysqli_fetch_assoc($performance)) {
     $sid = $row['semester_id'];
     if (!isset($semesters[$sid])) {
         $semesters[$sid] = ['name' => $row['semester_name'], 'rows' => [], 'credits' => 0.0, 'points' => 0.0];
     }
-    $wt = $credit_map[$row['subject_code']] ?? 3.00;
+    $wt = (float)$row['credit_hours'];
     if ($row['total_score'] !== null) {
         [$grade, $gp] = gradeFromScore((float)$row['total_score']);
         $semesters[$sid]['credits'] += $wt;
         $semesters[$sid]['points']  += $gp * $wt;
         $passed = ($row['predicted_status'] !== 'Fail');
-        $remark = ($row['predicted_status'] === 'At Risk') ? 'At Risk' : '';
+        // BE: attendance below the bar for sitting the final exam.
+        $remark = ((float)$row['attendance'] < ATTENDANCE_BAR) ? 'BE'
+                : (($row['predicted_status'] === 'At Risk') ? 'At Risk' : '');
     } else {
         [$grade, $gp, $passed, $remark] = ['GP', null, null, 'Pending'];
     }
@@ -93,6 +97,9 @@ unset($sem);
 $intake          = $semesters ? reset($semesters)['name'] : '—';
 $semester_number = count($semesters);
 
+// Programme Learning Outcome attainment over all semesters (includes/obe.php).
+$plo_attainment = obe_student_plo($conn, $student_db_id);
+
 function gpa_text($v) {
     return $v === null ? '—' : number_format($v, 2);
 }
@@ -107,7 +114,7 @@ function gpa_text($v) {
     <link href="../assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link href="../assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     <link href="../assets/css/dark-mode.css?v=4" rel="stylesheet">
-    <link href="../assets/css/app.css?v=5" rel="stylesheet">
+    <link href="../assets/css/app.css?v=6" rel="stylesheet">
     <link rel="icon" href="../assets/images/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="../assets/images/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="../assets/images/apple-touch-icon.png">
@@ -450,6 +457,37 @@ function gpa_text($v) {
         </tr>
     </table>
     <?php endforeach; ?>
+
+    <?php if ($semesters): ?>
+    <!-- Programme Learning Outcomes -->
+    <div class="semester-heading" style="font-weight:700; font-size:10pt; margin:14px 0 4px;">Programme Learning Outcome Attainment (cumulative)</div>
+    <table class="courses-table">
+        <thead>
+            <tr>
+                <th style="width:50px;">PLO</th>
+                <th class="left">Outcome</th>
+                <th style="width:60px;">Score</th>
+                <th style="width:60px;">Target</th>
+                <th style="width:80px;">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($plo_attainment as $plo): ?>
+            <tr>
+                <td><?php echo h($plo['plo_code']); ?></td>
+                <td class="left"><?php echo h(strtoupper($plo['plo_title'])); ?></td>
+                <td><?php echo $plo['score'] === null ? '—' : number_format($plo['score'], 2); ?></td>
+                <td><?php echo number_format((float)$plo['target_threshold'], 0); ?></td>
+                <?php if ($plo['attained'] === null): ?>
+                    <td>Pending</td>
+                <?php else: ?>
+                    <td class="<?php echo $plo['attained'] ? 'pass' : 'fail'; ?>"><?php echo $plo['attained'] ? 'Attained' : 'Not Attained'; ?></td>
+                <?php endif; ?>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php endif; ?>
 
     <hr class="thin">
 

@@ -182,6 +182,13 @@ $at_risk_list = mysqli_fetch_all(mysqli_stmt_get_result($stmt_risk), MYSQLI_ASSO
 // Cleanup statements
 mysqli_stmt_close($stmt_sess);
 mysqli_stmt_close($stmt_risk);
+
+// ── Mid-semester early warnings: subjects without a final exam mark yet
+// whose marks so far point to trouble (includes/early_warning.php), so
+// help is offered while there is still time to act.
+require '../includes/early_warning.php';
+$early_risk_list = array_filter(early_warnings($conn, $semester_id, 'student', $student_db_id),
+    fn($ew) => !$ew['analysis']['final_marked'] && $ew['analysis']['level'] !== 'ok');
 ?>
 <?php
 // Shared head, topbar and sidebar (includes/page_start.php); only this
@@ -299,6 +306,19 @@ require '../includes/page_start.php';
             You are currently <strong class="text-danger"><?php echo h($risk['predicted_status']); ?></strong>
             in <strong style="color:#1A3A5C;"><?php echo h($risk['subject_code']); ?> — <?php echo h($risk['subject_name']); ?></strong>.<br>
             Book a session with your lecturer or a peer mentor below to get academic support before your final exam.
+        </div>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+    </div>
+    <?php endforeach; ?>
+
+    <?php foreach ($early_risk_list as $ew): $a = $ew['analysis']; ?>
+    <div class="alert py-3 d-flex align-items-start gap-3 mb-3" style="background:#FFFBEB; border:1px solid #FCD34D; color:#92400E; border-radius:10px;">
+        <i class="bi bi-binoculars-fill fs-4 text-warning"></i>
+        <div style="font-size: 0.9rem;">
+            <strong>Early warning</strong> in <strong style="color:#1A3A5C;"><?php echo h($ew['subject_code']); ?> — <?php echo h($ew['subject_name']); ?></strong>:
+            projected total <?php echo ew_pct($a['projected']); ?> from your marks so far.
+            <?php echo render_risk_reasons($a['reasons']); ?>
+            Your final exam isn't marked yet — book a session below to get support now.
         </div>
         <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
     </div>

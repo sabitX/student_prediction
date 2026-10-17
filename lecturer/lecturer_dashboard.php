@@ -16,8 +16,23 @@ $initials   = strtoupper(substr($first_name, 0, 1) . substr(explode(' ', trim($f
 $active_semester = h(get_active_semester_name($conn));
 
 require '../includes/mentorship.php';
+require '../includes/marks.php';
+require '../includes/early_warning.php';
+require '../includes/obe.php';
 
 $semester_id = get_active_semester_id($conn);
+
+// ── SECURE POST: CQI ACTION for a CLO that missed its target ───────────────
+// obe_save_cqi() checks the CLO belongs to one of this lecturer's subjects
+// and recalculates the attainment itself.
+if (isset($_POST['log_cqi']) && csrf_verify()) {
+    [$ok, $msg] = obe_save_cqi($conn, (int)$user_id, (int)($_POST['clo_id'] ?? 0), $semester_id,
+                               is_string($_POST['root_cause'] ?? null) ? $_POST['root_cause'] : '',
+                               is_string($_POST['remedial_plan'] ?? null) ? $_POST['remedial_plan'] : '');
+    $_SESSION['dashboard_flash'] = ['ok' => $ok, 'msg' => $msg];
+    header("Location: lecturer_dashboard.php#outcomes");
+    exit();
+}
 
 // ── SECURE POST: MENTORSHIP SESSION ACTIONS (CSRF-token protected) ─────────
 // Rules (valid status transitions, clash check, future dates) live in
@@ -84,6 +99,32 @@ mysqli_stmt_bind_param($stmt_appr, "i", $user_id);
 mysqli_stmt_execute($stmt_appr);
 $approved_sessions = mysqli_stmt_get_result($stmt_appr);
 mysqli_stmt_close($stmt_appr);
+
+// ── Mid-semester early-warning roster: my students whose final exam isn't
+// marked yet and whose marks so far raise a flag, most serious first.
+$roster = array_values(array_filter(early_warnings($conn, $semester_id, 'lecturer', $user_id),
+    fn($ew) => !$ew['analysis']['final_marked'] && $ew['analysis']['level'] !== 'ok'));
+usort($roster, fn($x, $y) => [$x['analysis']['level'] !== 'critical', $x['analysis']['projected']]
+                         <=> [$y['analysis']['level'] !== 'critical', $y['analysis']['projected']]);
+
+// ── CLO attainment per subject this semester, with CQI flags ───────────────
+$stmt_my_subs = mysqli_prepare($conn, "SELECT sub.id, sub.subject_code, sub.subject_name
+                                       FROM lecturer_subjects ls JOIN subjects sub ON sub.id = ls.subject_id AND sub.is_archived = 0
+                                       WHERE ls.user_id = ? ORDER BY sub.subject_code");
+mysqli_stmt_bind_param($stmt_my_subs, "i", $user_id);
+mysqli_stmt_execute($stmt_my_subs);
+$my_subjects = mysqli_fetch_all(mysqli_stmt_get_result($stmt_my_subs), MYSQLI_ASSOC);
+mysqli_stmt_close($stmt_my_subs);
+foreach ($my_subjects as &$sub) {
+    $sub['clos'] = obe_cohort_clo($conn, (int)$sub['id'], $semester_id);
+}
+unset($sub);
+$cqi_open = 0;
+foreach ($my_subjects as $sub) {
+    foreach ($sub['clos'] as $clo) {
+        if ($clo['cqi_required'] && !$clo['cqi']) $cqi_open++;
+    }
+}
 ?>
 <?php
 // Shared head, topbar and sidebar (includes/page_start.php); only this
@@ -191,6 +232,142 @@ require '../includes/page_start.php';
                     <small>critical standing</small>
                 </div>
             </div>
+        </div>
+
+        <!-- Mid-Semester Early-Warning Roster -->
+        <div class="dashboard-card">
+            <div class="card-header-title">
+                <i class="bi bi-binoculars text-primary"></i>Mid-Semester Early Warnings
+                <?php if ($roster): ?>
+                    <span class="badge bg-warning text-dark ms-2" style="font-size:0.75rem;"><?php echo count($roster); ?> flagged</span>
+                <?php endif; ?>
+            </div>
+            <p class="text-muted" style="font-size:0.82rem; margin-top:-8px;">
+                Students whose final exam isn't marked yet and whose marks so far point to trouble.
+                Projections blend the coursework marked so far with the student's earlier results
+                (or the class average for new students).
+            </p>
+            <?php if ($roster): ?>
+            <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size:0.86rem;">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Student</th>
+                        <th>Subject</th>
+                        <th class="text-center">Asg / Mid / Att</th>
+                        <th class="text-center">Projected</th>
+                        <th class="text-center">Final needed</th>
+                        <th>Why</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($roster as $ew): $a = $ew['analysis']; ?>
+                    <tr>
+                        <td class="ps-3">
+                            <strong style="color:#1A3A5C;"><?php echo h($ew['full_name']); ?></strong><br>
+                            <span class="text-muted" style="font-size:0.75rem;"><?php echo h($ew['student_code']); ?></span>
+                        </td>
+                        <td><strong><?php echo h($ew['subject_code']); ?></strong></td>
+                        <td class="text-center text-nowrap">
+                            <?php echo implode(' / ', array_map(fn($k) => $ew[$k] === null ? '—' : h(ew_pct($ew[$k])), ['assignment', 'midterm', 'attendance'])); ?>
+                        </td>
+                        <td class="text-center">
+                            <strong><?php echo ew_pct($a['projected']); ?></strong><br>
+                            <span class="<?php echo risk_badge_class($a['level']); ?>"><?php echo risk_label($a['level']); ?></span>
+                        </td>
+                        <td class="text-center"><?php echo $a['min_final'] === null ? '—' : ($a['min_final'] > 100 ? 'over 100%' : ew_pct($a['min_final'])); ?></td>
+                        <td style="min-width:260px;"><?php echo render_risk_reasons($a['reasons']); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            </div>
+            <?php else: ?>
+            <div class="empty-state">
+                <i class="bi bi-binoculars"></i>
+                <p class="mb-0">No early warnings — every student with marks so far is on track, or their final exam is already marked.</p>
+            </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- CLO Attainment & CQI -->
+        <div class="dashboard-card" id="outcomes">
+            <div class="card-header-title">
+                <i class="bi bi-diagram-3 text-primary"></i>Learning Outcome Attainment &amp; CQI
+                <?php if ($cqi_open > 0): ?>
+                    <span class="badge bg-danger ms-2" style="font-size:0.75rem;"><?php echo $cqi_open; ?> need a CQI action</span>
+                <?php endif; ?>
+            </div>
+            <p class="text-muted" style="font-size:0.82rem; margin-top:-8px;">
+                Share of assessed students who reached each CLO's target this semester. Below the class target (KPI),
+                the CLO needs a Continuous Quality Improvement action.
+            </p>
+            <?php if (!$my_subjects): ?>
+            <div class="empty-state"><i class="bi bi-journal"></i><p class="mb-0">No subjects are assigned to you.</p></div>
+            <?php endif; ?>
+            <?php foreach ($my_subjects as $sub): ?>
+            <h6 class="fw-bold mt-3 mb-2" style="color:#1A3A5C;"><?php echo h($sub['subject_code']); ?> <span class="text-muted fw-normal" style="font-size:0.85rem;"><?php echo h($sub['subject_name']); ?></span></h6>
+            <div class="table-responsive mb-2">
+            <table class="table align-middle mb-0" style="font-size:0.85rem;">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">CLO</th>
+                        <th>Assessed by</th>
+                        <th class="text-center">Attained</th>
+                        <th class="text-center">KPI</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center pe-3">CQI</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($sub['clos'] as $clo): ?>
+                    <tr>
+                        <td class="ps-3" title="<?php echo h(obe_clo_label($clo)); ?>">
+                            <strong><?php echo h($clo['clo_code']); ?></strong>
+                            <span class="text-muted" style="font-size:0.75rem;"><?php echo h($clo['bloom_level'] . ' · ' . $clo['plo_code']); ?></span><br>
+                            <span class="text-muted" style="font-size:0.78rem;"><?php echo h($clo['clo_description']); ?></span>
+                        </td>
+                        <td style="font-size:0.8rem;"><?php echo $clo['components'] ? h(implode(', ', array_map(fn($c) => MARK_FIELDS[$c], $clo['components']))) : '<span class="text-muted">Nothing</span>'; ?></td>
+                        <td class="text-center text-nowrap">
+                            <?php if ($clo['pct'] === null): ?>—<?php else: ?>
+                                <strong><?php echo number_format($clo['pct'], 0); ?>%</strong>
+                                <span class="text-muted" style="font-size:0.75rem;">(<?php echo $clo['attained']; ?>/<?php echo $clo['assessed']; ?>)</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-center"><?php echo number_format($clo['kpi'], 0); ?>%</td>
+                        <td class="text-center">
+                            <?php if ($clo['pct'] === null): ?>
+                                <span class="<?php echo status_badge_class(null); ?>">Not assessed</span>
+                            <?php elseif ($clo['cqi_required']): ?>
+                                <span class="<?php echo status_badge_class('Fail'); ?>">CQI required</span>
+                            <?php else: ?>
+                                <span class="<?php echo status_badge_class('Excellent'); ?>">Meets KPI</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-center pe-3">
+                            <?php if ($clo['cqi']): ?>
+                                <span class="d-block text-muted" style="font-size:0.72rem;" title="<?php echo h('Root cause: ' . $clo['cqi']['root_cause'] . "\nPlan: " . $clo['cqi']['remedial_plan']); ?>">
+                                    <i class="bi bi-check2-circle"></i> Logged <?php echo date('d M', strtotime($clo['cqi']['updated_at'])); ?>
+                                </span>
+                            <?php endif; ?>
+                            <?php if ($clo['pct'] !== null && ($clo['cqi_required'] || $clo['cqi'])): ?>
+                            <button type="button" class="btn btn-action btn-complete" data-bs-toggle="modal" data-bs-target="#cqiModal"
+                                    data-clo="<?php echo (int)$clo['id']; ?>"
+                                    data-title="<?php echo h($sub['subject_code'] . ' ' . $clo['clo_code'] . ' — ' . number_format($clo['pct'], 0) . '% attained (KPI ' . number_format($clo['kpi'], 0) . '%)'); ?>"
+                                    data-cause="<?php echo h($clo['cqi']['root_cause'] ?? ''); ?>"
+                                    data-plan="<?php echo h($clo['cqi']['remedial_plan'] ?? ''); ?>">
+                                <i class="bi bi-pencil-square me-1"></i><?php echo $clo['cqi'] ? 'Edit' : 'Log action'; ?>
+                            </button>
+                            <?php elseif ($clo['pct'] !== null): ?>
+                                <span class="text-muted">—</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            </div>
+            <?php endforeach; ?>
         </div>
 
         <!-- Mentorship Session Requests -->
@@ -345,11 +522,47 @@ ob_start();
     </div>
 </div>
 
+<!-- CQI Action Modal -->
+<div class="modal fade" id="cqiModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:12px; border:none;">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" style="color:#1A3A5C;"><i class="bi bi-arrow-repeat me-2"></i>CQI Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="clo_id" id="cqi_clo">
+                <div class="modal-body">
+                    <p class="small text-muted" id="cqi_title"></p>
+                    <label class="form-label fw-semibold" for="cqi_cause">Root cause</label>
+                    <textarea name="root_cause" id="cqi_cause" class="form-control mb-3" rows="3" required maxlength="<?php echo CQI_TEXT_MAX; ?>"
+                              placeholder="e.g. Midterm questions on normalisation were answered poorly; topic was covered in one lecture."></textarea>
+                    <label class="form-label fw-semibold" for="cqi_plan">Remedial plan</label>
+                    <textarea name="remedial_plan" id="cqi_plan" class="form-control" rows="3" required maxlength="<?php echo CQI_TEXT_MAX; ?>"
+                              placeholder="e.g. Extra tutorial in week 9 and a practice quiz before the final exam."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" name="log_cqi" class="btn btn-primary">Save Action</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <?php require '../includes/onboarding.php'; ?>
 <script>
 document.getElementById('rescheduleModal').addEventListener('show.bs.modal', function (e) {
     document.getElementById('reschedule_sid').value = e.relatedTarget.dataset.sid;
     document.getElementById('reschedule_student').textContent = e.relatedTarget.dataset.student;
+});
+document.getElementById('cqiModal').addEventListener('show.bs.modal', function (e) {
+    const d = e.relatedTarget.dataset;
+    document.getElementById('cqi_clo').value         = d.clo;
+    document.getElementById('cqi_title').textContent = d.title;
+    document.getElementById('cqi_cause').value       = d.cause;
+    document.getElementById('cqi_plan').value        = d.plan;
 });
 </script>
 <?php $page_scripts = ob_get_clean(); require '../includes/page_end.php'; ?>

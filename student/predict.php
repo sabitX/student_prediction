@@ -3,6 +3,8 @@ require '../includes/session_check.php';
 require '../config/config.php';
 require '../includes/semester.php';
 require '../includes/grading.php';
+require '../includes/early_warning.php';
+require '../includes/obe.php';
 
 $user_id =$_SESSION['user_id'];
 
@@ -46,8 +48,21 @@ if (isset($_GET['get_marks']) && isset($_GET['subject_id'])) {
     $marks = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_ajax));
     mysqli_stmt_close($stmt_ajax);
 
+    // The subject's learning outcomes, so the page can show how a
+    // hypothetical final exam score moves each one (includes/obe.php).
+    $clos = [];
+    foreach (obe_subject_outcomes($conn, [$subject_id])[$subject_id] ?? [] as $clo) {
+        $clos[] = [
+            'code'       => $clo['clo_code'],
+            'label'      => obe_clo_label($clo),
+            'plo'        => $clo['plo_code'] . ' ' . $clo['plo_title'],
+            'components' => $clo['components'],
+            'threshold'  => $clo['threshold'],
+        ];
+    }
+
     header('Content-Type: application/json');
-    echo json_encode($marks ?: ['assignment' => '', 'midterm' => '', 'attendance' => '']);
+    echo json_encode(($marks ?: ['assignment' => '', 'midterm' => '', 'attendance' => '']) + ['clos' => $clos]);
     exit();
 }
 ?>
@@ -202,6 +217,12 @@ require '../includes/page_start.php';
             </div>
         </div>
 
+        <div id="be-warning" class="alert py-2 mb-4" style="display:none; font-size:0.88rem; background:#F9E5E5; border:1px solid #EECACA; color:#9B2C2C; border-radius:8px;">
+            <i class="bi bi-exclamation-octagon-fill me-1"></i>
+            Attendance is below <?php echo ATTENDANCE_BAR; ?>%. You may be <strong>barred from the final exam (BE)</strong>,
+            whatever your other marks — speak to your lecturer now.
+        </div>
+
         <div class="card border-0 p-3 mb-4" style="background:#F8FAFC; border-radius:10px;">
             <h6 class="fw-bold mb-1" style="color:#1A3A5C;">
                 <i class="bi bi-bullseye me-1 text-primary"></i>
@@ -286,6 +307,17 @@ require '../includes/page_start.php';
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Learning outcome impact -->
+        <div class="dashboard-card mb-4" id="clo-card" style="display:none;">
+            <div class="card-header-title mb-2">
+                <i class="bi bi-diagram-3 text-primary"></i>Learning Outcome Impact
+            </div>
+            <p class="text-muted mb-3" style="font-size:0.8rem;">
+                How these marks score on each course learning outcome (CLO). A CLO is attained at its target score.
+            </p>
+            <div id="clo-list"></div>
         </div>
 
         <!-- Official Results -->
@@ -396,6 +428,7 @@ function loadExistingMarks(subjectId) {
         document.getElementById(id).style.display = 'none';
     });
     fField.value = '';
+    subjectClos = [];
     calcWhatIf();
 
     if (!subjectId) return;
@@ -403,6 +436,7 @@ function loadExistingMarks(subjectId) {
     fetch(`predict.php?get_marks=1&subject_id=${subjectId}`)
         .then(r => r.json())
         .then(data => {
+            subjectClos = data.clos || [];
             if (data.assignment !== '' && data.assignment !== null) {
                 aField.value = data.assignment;
                 aField.classList.add('locked-field');
@@ -425,11 +459,68 @@ function loadExistingMarks(subjectId) {
         });
 }
 
+// The selected subject's CLOs (from includes/obe.php via get_marks).
+let subjectClos = [];
+const MARK_WEIGHTS   = <?php echo json_encode(MARK_WEIGHTS); ?>;
+const ATTENDANCE_BAR = <?php echo (int)ATTENDANCE_BAR; ?>;
+
+// Each CLO's score is the weighted average of the components mapped to it;
+// a CLO is shown as "not assessed" until all of them have a value.
+function renderClos(values) {
+    const card = document.getElementById('clo-card');
+    const list = document.getElementById('clo-list');
+    list.replaceChildren();
+    card.style.display = subjectClos.length ? 'block' : 'none';
+    const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    subjectClos.forEach(clo => {
+        let sum = 0, weight = 0, complete = clo.components.length > 0;
+        clo.components.forEach(c => {
+            if (values[c] === '') { complete = false; return; }
+            sum += parseFloat(values[c]) * MARK_WEIGHTS[c];
+            weight += MARK_WEIGHTS[c];
+        });
+        const score = complete ? sum / weight : null;
+        const attained = score !== null && score >= clo.threshold;
+
+        const row = document.createElement('div');
+        row.className = 'mb-3';
+        row.title = clo.label;
+        const head = document.createElement('div');
+        head.className = 'd-flex justify-content-between';
+        head.style.fontSize = '0.82rem';
+        const name = document.createElement('span');
+        name.innerHTML = '<strong></strong> <span class="text-muted"></span>';
+        name.children[0].textContent = clo.code;
+        name.children[1].textContent = '· ' + clo.plo;
+        const state = document.createElement('span');
+        state.className = 'badge-status clo-pill badge-status-' + (score === null ? 'pending' : attained ? 'excellent' : 'risk');
+        state.textContent = score === null ? 'Not assessed' : `${score.toFixed(1)}% ${attained ? '✓' : '✗'}`;
+        head.append(name, state);
+
+        const bar = document.createElement('div');
+        bar.className = 'progress mt-1';
+        bar.style.cssText = 'height:6px; position:relative;';
+        const fill = document.createElement('div');
+        fill.className = 'progress-bar';
+        fill.style.width = (score === null ? 0 : Math.min(score, 100)) + '%';
+        fill.style.background = attained ? (dark ? '#4FA67E' : '#2F7D5B') : (dark ? '#D2A24E' : '#B8862E');
+        const mark = document.createElement('div');
+        mark.style.cssText = `position:absolute; top:0; bottom:0; width:2px; left:${clo.threshold}%; background:${dark ? '#E2E8F0' : '#1A3A5C'};`;
+        bar.append(fill, mark);
+        row.append(head, bar);
+        list.append(row);
+    });
+}
+
 function calcWhatIf() {
     const aVal = document.getElementById('c_assignment').value;
     const mVal = document.getElementById('c_midterm').value;
     const fVal = document.getElementById('c_final').value;
     const tVal = document.getElementById('c_attendance').value;
+
+    renderClos({ assignment: aVal, midterm: mVal, final_exam: fVal, attendance: tVal });
+    document.getElementById('be-warning').style.display =
+        (tVal !== '' && parseFloat(tVal) < ATTENDANCE_BAR) ? 'block' : 'none';
 
     const a = parseFloat(aVal) || 0;
     const m = parseFloat(mVal) || 0;

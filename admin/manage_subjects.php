@@ -4,6 +4,7 @@ require '../config/config.php';
 require '../includes/csrf.php';
 require '../includes/semester.php';
 require '../includes/audit.php';
+require '../includes/obe.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     header("Location: ../auth/login.php");
@@ -46,6 +47,14 @@ function set_subject_lecturer($conn, $subject_id, $lecturer_id) {
     return '';
 }
 
+// Credit hours from a form field: 1.0–6.0 in steps of 0.5, else null.
+function parse_credit_hours($raw) {
+    $raw = trim((string)$raw);
+    if (!is_numeric($raw)) return null;
+    $v = (float)$raw;
+    return ($v >= 1 && $v <= 6 && fmod($v * 2, 1) == 0) ? $v : null;
+}
+
 // The active (not archived) subject with this id, or null.
 function active_subject($conn, $subject_id) {
     $stmt = mysqli_prepare($conn, "SELECT id, subject_code, subject_name FROM subjects WHERE id = ? AND is_archived = 0");
@@ -77,6 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 } elseif (isset($_POST['add_subject'])) {
     $code        = strtoupper(trim($_POST['subject_code'] ?? ''));
     $name        = trim($_POST['subject_name'] ?? '');
+    $credits     = parse_credit_hours($_POST['credit_hours'] ?? '');
     $lecturer_id = (int)($_POST['lecturer_id'] ?? 0);
 
     $stmt_check = mysqli_prepare($conn, "SELECT id, is_archived FROM subjects WHERE subject_code = ?");
@@ -89,24 +99,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
         $error = "Enter a subject code (3–20 letters/digits, e.g. EC2301) and a subject name.";
     } elseif (mb_strlen($name) > 100) {
         $error = "Subject name is too long (max 100 characters).";
+    } elseif ($credits === null) {
+        $error = "Credit hours must be from 1 to 6 (in steps of 0.5).";
     } elseif ($existing && $existing['is_archived']) {
         $error = "$code belongs to an archived subject. Restore it from the Archived Subjects list instead.";
     } elseif ($existing) {
         $error = "$code already exists. Use Edit on that subject to change its name or lecturer.";
     } else {
         mysqli_begin_transaction($conn);
-        $stmt_insert = mysqli_prepare($conn, "INSERT INTO subjects (subject_code, subject_name) VALUES (?, ?)");
-        mysqli_stmt_bind_param($stmt_insert, "ss", $code, $name);
+        $stmt_insert = mysqli_prepare($conn, "INSERT INTO subjects (subject_code, subject_name, credit_hours) VALUES (?, ?, ?)");
+        mysqli_stmt_bind_param($stmt_insert, "ssd", $code, $name, $credits);
         mysqli_stmt_execute($stmt_insert);
         $subject_id = mysqli_insert_id($conn);
         mysqli_stmt_close($stmt_insert);
+        // Default learning outcomes (CLO1–CLO4); reworded under Outcomes.
+        obe_seed_subject($conn, $subject_id);
 
         $lec_error = set_subject_lecturer($conn, $subject_id, $lecturer_id);
         if ($lec_error) {
             mysqli_rollback($conn);
             $error = $lec_error;
         } else {
-            audit_log($conn, 'Subject added', "Subject: $code ($name)" . ($lecturer_id ? " | Lecturer id: $lecturer_id" : ''));
+            audit_log($conn, 'Subject added', "Subject: $code ($name) | Credits: $credits" . ($lecturer_id ? " | Lecturer id: $lecturer_id" : ''));
             mysqli_commit($conn);
             $success = "Subject $code added. Remember to enrol students from Enrolments.";
         }
@@ -116,6 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 } elseif (isset($_POST['edit_subject'])) {
     $subject_id  = (int)($_POST['edit_id'] ?? 0);
     $name        = trim($_POST['edit_name'] ?? '');
+    $credits     = parse_credit_hours($_POST['edit_credit_hours'] ?? '');
     $lecturer_id = (int)($_POST['edit_lecturer_id'] ?? 0);
 
     $subject = active_subject($conn, $subject_id);
@@ -123,10 +138,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
         $error = "Subject not found, or it has been archived.";
     } elseif ($name === '' || mb_strlen($name) > 100) {
         $error = "Subject name is required (max 100 characters).";
+    } elseif ($credits === null) {
+        $error = "Credit hours must be from 1 to 6 (in steps of 0.5).";
     } else {
         mysqli_begin_transaction($conn);
-        $stmt = mysqli_prepare($conn, "UPDATE subjects SET subject_name = ? WHERE id = ? AND is_archived = 0");
-        mysqli_stmt_bind_param($stmt, "si", $name, $subject_id);
+        $stmt = mysqli_prepare($conn, "UPDATE subjects SET subject_name = ?, credit_hours = ? WHERE id = ? AND is_archived = 0");
+        mysqli_stmt_bind_param($stmt, "sdi", $name, $credits, $subject_id);
         mysqli_stmt_execute($stmt);
         mysqli_stmt_close($stmt);
         $lec_error = set_subject_lecturer($conn, $subject_id, $lecturer_id);
@@ -134,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
             mysqli_rollback($conn);
             $error = $lec_error;
         } else {
-            audit_log($conn, 'Subject edited', "Subject: {$subject['subject_code']} | Name: $name | Lecturer id: " . ($lecturer_id ?: 'none'));
+            audit_log($conn, 'Subject edited', "Subject: {$subject['subject_code']} | Name: $name | Credits: $credits | Lecturer id: " . ($lecturer_id ?: 'none'));
             mysqli_commit($conn);
             $success = "Subject updated.";
         }
@@ -272,6 +289,11 @@ require '../includes/page_start.php';
                         <input type="text" name="subject_name" class="form-control"
                                placeholder="e.g. Database Development" required maxlength="100">
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Credit Hours</label>
+                        <input type="number" name="credit_hours" class="form-control" value="3" min="1" max="6" step="0.5" required>
+                        <small class="text-muted mt-1 d-block" style="font-size:0.75rem;">Used to weight this subject in GPA and CGPA.</small>
+                    </div>
                     <div class="mb-4">
                         <label class="form-label">Assign Lecturer</label>
                         <select name="lecturer_id" class="form-select">
@@ -313,6 +335,7 @@ require '../includes/page_start.php';
                             <th class="ps-4">#</th>
                             <th>Code</th>
                             <th>Subject Name</th>
+                            <th class="text-center">Credits</th>
                             <th>Assigned Lecturer</th>
                             <th class="text-center pe-4">Action</th>
                         </tr>
@@ -323,6 +346,7 @@ require '../includes/page_start.php';
                             <td class="ps-4 text-muted"><?php echo $i++; ?></td>
                             <td class="fw-bold" style="color:#1A3A5C;"><?php echo h($row['subject_code']); ?></td>
                             <td class="fw-semibold text-dark"><?php echo h($row['subject_name']); ?></td>
+                            <td class="text-center"><?php echo h(number_format((float)$row['credit_hours'], 1)); ?></td>
                             <td>
                                 <?php if ($row['lecturer_name']): ?>
                                     <div class="d-flex align-items-center gap-2">
@@ -348,9 +372,13 @@ require '../includes/page_start.php';
                                         data-id="<?php echo (int)$row['id']; ?>"
                                         data-code="<?php echo h($row['subject_code']); ?>"
                                         data-name="<?php echo h($row['subject_name']); ?>"
+                                        data-credits="<?php echo h($row['credit_hours']); ?>"
                                         data-lecturer="<?php echo (int)$row['lecturer_id']; ?>">
                                     <i class="bi bi-pencil-square me-1"></i>Edit
                                 </button>
+                                <a href="subject_outcomes.php?id=<?php echo (int)$row['id']; ?>" class="btn btn-sm btn-outline-secondary px-3 py-1 rounded-2 me-1" style="font-size:0.75rem;">
+                                    <i class="bi bi-diagram-3 me-1"></i>Outcomes
+                                </a>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('⚠️ This subject will be archived. All historical student records are preserved. Continue?');">
                                     <?php echo csrf_field(); ?>
                                     <input type="hidden" name="archive_id" value="<?php echo $row['id']; ?>">
@@ -418,6 +446,10 @@ ob_start();
                         <label class="form-label" for="edit_name">Subject Name</label>
                         <input type="text" name="edit_name" id="edit_name" class="form-control" required maxlength="100">
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="edit_credit_hours">Credit Hours</label>
+                        <input type="number" name="edit_credit_hours" id="edit_credit_hours" class="form-control" min="1" max="6" step="0.5" required>
+                    </div>
                     <div>
                         <label class="form-label" for="edit_lecturer_id">Lecturer</label>
                         <select name="edit_lecturer_id" id="edit_lecturer_id" class="form-select">
@@ -443,6 +475,7 @@ document.getElementById('editSubjectModal').addEventListener('show.bs.modal', fu
     document.getElementById('edit_id').value          = d.id;
     document.getElementById('edit_code').textContent  = d.code;
     document.getElementById('edit_name').value        = d.name;
+    document.getElementById('edit_credit_hours').value = d.credits;
     document.getElementById('edit_lecturer_id').value = d.lecturer;
 });
 

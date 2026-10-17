@@ -206,6 +206,7 @@ If the lecturer's account is deleted, their Pending/Approved sessions become Dec
 | id | INT AUTO_INCREMENT | **PK** |
 | subject_code | VARCHAR(20), e.g. `EC2301` | UNIQUE |
 | subject_name | VARCHAR(100) | |
+| credit_hours | DECIMAL(3,1), NOT NULL, default 3.0, CHECK 1.0–6.0 (weights the subject in GPA) | |
 | is_archived | TINYINT(1), NOT NULL | |
 
 **5. LECTURER_SUBJECTS** — which lecturer teaches which subject
@@ -312,6 +313,54 @@ A row appears only when all four marks are entered. Nothing is stored, so a resu
 | resolved_at | DATETIME | |
 | created_at | TIMESTAMP | |
 
+**14. PLOS** — Programme Learning Outcomes
+| Attribute | Type | Key |
+|---|---|---|
+| id | INT AUTO_INCREMENT | **PK** |
+| plo_code | VARCHAR(10), e.g. `PLO1` | UNIQUE |
+| plo_title | VARCHAR(100) | |
+| description | VARCHAR(255) | |
+| target_threshold | DECIMAL(5,2), default 50 (score a student needs to attain it) | |
+| cohort_kpi_pct | DECIMAL(5,2), default 80 (share of the class that must attain it) | |
+
+**15. SUBJECT_CLOS** — Course Learning Outcomes, CLO1–CLO4 per subject
+| Attribute | Type | Key |
+|---|---|---|
+| id | INT AUTO_INCREMENT | **PK**; UNIQUE (id, subject_id) as the target of CLO_ASSESSMENTS' composite FK |
+| subject_id | INT | **FK → SUBJECTS.id**, CASCADE |
+| clo_code | ENUM('CLO1'…'CLO4') | UNIQUE (subject_id, clo_code) |
+| clo_description | VARCHAR(255) | |
+| bloom_level | ENUM C1–C6 (cognitive), P1–P7 (psychomotor), A1–A5 (affective) | |
+| plo_id | INT | **FK → PLOS.id**, RESTRICT |
+
+**16. CLO_ASSESSMENTS** — which CLO each mark component assesses
+| Attribute | Type | Key |
+|---|---|---|
+| subject_id | INT | **PK** (subject_id, component) |
+| component | ENUM('assignment','midterm','final_exam','attendance') | |
+| clo_id | INT | **FK (clo_id, subject_id) → SUBJECT_CLOS (id, subject_id)**, CASCADE — the CLO must belong to the same subject |
+
+**17. CQI_ACTIONS** — a lecturer's response to a CLO below its class KPI
+| Attribute | Type | Key |
+|---|---|---|
+| id | INT AUTO_INCREMENT | **PK** |
+| clo_id | INT | **FK → SUBJECT_CLOS.id**, CASCADE; UNIQUE (clo_id, semester_id) |
+| semester_id | INT | **FK → SEMESTERS.id**, RESTRICT |
+| attainment_pct | DECIMAL(5,2) (class attainment when the action was logged — a snapshot) | |
+| root_cause, remedial_plan | VARCHAR(500) each | |
+| logged_by | INT, NULL | **FK → USERS.id**, SET NULL |
+| created_at, updated_at | TIMESTAMP | |
+
+**18. EARLY_RISK_PREDICTIONS** — a **VIEW** over PERFORMANCE for rows with at least one mark
+| Column | Calculated as |
+|---|---|
+| student_id, subject_id, semester_id, the four marks | from PERFORMANCE |
+| assessed_weight | sum of the weights of the components entered (0.10–1.00) |
+| current_score | weighted average of the components entered, rescaled to 0–100 (equals total_score once all four are in) |
+| current_status | the usual bands applied to current_score |
+| min_final_to_pass | (60 − coursework points) ÷ 0.40, when assignment, midterm and attendance are in and the final isn't |
+| attendance_below_bar | 1 when attendance < 80 (barred from the final exam, BE) |
+
 > All tables use utf8mb4 (full Unicode, including emoji), and the app runs every connection in strict SQL mode, so invalid values are rejected rather than silently changed.
 
 > Tip: LOGIN_ATTEMPTS has no relationships. Leave it out of the main ERD, or draw it as a separate box.
@@ -333,6 +382,12 @@ A row appears only when all four marks are entered. Nothing is stored, so a resu
 | R11 | USERS **requests** PASSWORD_RESETS | 1 : N | password_resets.user_id | |
 | R12 | USERS (admin) **resolves** PASSWORD_RESETS and ACCOUNT_REQUESTS | 1 : N | resolved_by (SET NULL) | |
 | R13 | ACCOUNT_REQUESTS **creates** USERS (lecturer) | 0..1 : 0..1 | account_requests.user_id (SET NULL) | Set when the admin approves the request |
+| R14 | SUBJECTS **defines** SUBJECT_CLOS | 1 : 0..4 | subject_clos.subject_id | Each subject has CLO1–CLO4 |
+| R15 | PLOS **is served by** SUBJECT_CLOS | 1 : N | subject_clos.plo_id (RESTRICT) | Each CLO contributes to one PLO |
+| R16 | SUBJECT_CLOS **is assessed by** CLO_ASSESSMENTS | 1 : 0..4 | composite FK (clo_id, subject_id) | Each mark component of a subject assesses exactly one of its CLOs |
+| R17 | SUBJECT_CLOS **gets** CQI_ACTIONS **in** SEMESTERS | 1 : N, one per semester | clo_id, semester_id | |
+| R18 | USERS (lecturer) **logs** CQI_ACTIONS | 1 : N | logged_by (SET NULL) | |
+| R19 | PERFORMANCE **produces** EARLY_RISK_PREDICTIONS (view) | 1 : 0..1 | calculated, not a foreign key | A row exists once any mark is present |
 
 ### B3. Simplified ERD sketch
 
@@ -386,6 +441,13 @@ erDiagram
     PERFORMANCE ||--o| PREDICTIONS : "calculated into (view)"
     USERS |o--o| ACCOUNT_REQUESTS : "created from"
     USERS |o--o{ ACCOUNT_REQUESTS : "resolves (admin)"
+    SUBJECTS ||--o{ SUBJECT_CLOS : "defines"
+    PLOS ||--o{ SUBJECT_CLOS : "served by"
+    SUBJECT_CLOS ||--o{ CLO_ASSESSMENTS : "assessed by"
+    SUBJECT_CLOS ||--o{ CQI_ACTIONS : "improved by"
+    SEMESTERS ||--o{ CQI_ACTIONS : "during"
+    USERS |o--o{ CQI_ACTIONS : "logs (lecturer)"
+    PERFORMANCE ||--o| EARLY_RISK_PREDICTIONS : "calculated into (view)"
 
     USERS {
         int id PK
@@ -418,6 +480,7 @@ erDiagram
         int id PK
         varchar subject_code UK
         varchar subject_name
+        decimal credit_hours
         tinyint is_archived
     }
     LECTURER_SUBJECTS {
@@ -494,11 +557,51 @@ erDiagram
         varchar identifier
         timestamp attempted_at
     }
+    PLOS {
+        int id PK
+        varchar plo_code UK
+        varchar plo_title
+        varchar description
+        decimal target_threshold
+        decimal cohort_kpi_pct
+    }
+    SUBJECT_CLOS {
+        int id PK
+        int subject_id FK
+        enum clo_code "UK with subject_id"
+        varchar clo_description
+        enum bloom_level
+        int plo_id FK
+    }
+    CLO_ASSESSMENTS {
+        int subject_id PK
+        enum component PK
+        int clo_id FK
+    }
+    CQI_ACTIONS {
+        int id PK
+        int clo_id FK
+        int semester_id FK
+        decimal attainment_pct "snapshot"
+        varchar root_cause
+        varchar remedial_plan
+        int logged_by FK
+    }
+    EARLY_RISK_PREDICTIONS {
+        int student_id "VIEW over PERFORMANCE"
+        int subject_id
+        int semester_id
+        decimal assessed_weight "calculated"
+        decimal current_score "calculated"
+        varchar current_status "calculated"
+        decimal min_final_to_pass "calculated"
+        tinyint attendance_below_bar "calculated"
+    }
 ```
 
 ### B5. Notes for drawing the ERD correctly
 
-- **PREDICTIONS is a view.** Draw it with a dashed border (or label it «view»), connected only to PERFORMANCE. It has no stored rows and no foreign keys of its own.
+- **PREDICTIONS and EARLY_RISK_PREDICTIONS are views.** Draw them with a dashed border (or label them «view»), connected only to PERFORMANCE. They have no stored rows and no foreign keys of their own.
 
 - **USERS is a supertype.** Admin, Lecturer and Student are told apart by `role`. Only students get an extra table (STUDENTS). Show this as a disjoint specialisation (ISA), or as a 1 : 0..1 relationship.
 - **"student_id" means two things:**
@@ -528,7 +631,7 @@ erDiagram
   - Login details (email, password, role) belong to every kind of user, so they live in USERS; STUDENTS keeps only student-specific columns.
   - marks → total → status: the total and status are **not stored**. PREDICTIONS is a view that calculates them from PERFORMANCE.
 
-**Result:** every table is in **3NF**, and all except the four listed below are also in **BCNF**.
+**Result:** every table is in **3NF**, and all except the six marked 3NF below are also in **BCNF**.
 
 | Table | Candidate keys | Normal form |
 |---|---|---|
@@ -544,9 +647,15 @@ erDiagram
 | account_requests | id | 3NF (see generated columns below) |
 | audit_logs | id | 3NF |
 | login_attempts | id | BCNF |
-| *predictions* | — | a view; stores nothing |
+| plos | id, plo_code | BCNF |
+| subject_clos | id, (subject_id, clo_code) | BCNF |
+| clo_assessments | (subject_id, component), (clo_id, component) | 3NF (see below) |
+| cqi_actions | id, (clo_id, semester_id) | BCNF (attainment_pct is a snapshot) |
+| *predictions*, *early_risk_predictions* | — | views; store nothing |
 
 **Points that look like redundancy but aren't 3NF violations**
 
 - **Snapshot columns**: `audit_logs.actor_name`, `mentorship_sessions.mentor_name`, `password_resets.email`, and the name/email in `account_requests`. They record the value *at the time of the event*. If the user is renamed or deleted, these rows keep the old value, so they are not determined by `user_id`. They are facts about the event, which is why the audit trail survives account deletion.
+- **clo_assessments.subject_id**: `clo_id → subject_id` (a CLO belongs to one subject) and `clo_id` is not a key on its own, so the table is 3NF but not BCNF — `subject_id` is part of the key (subject_id, component), which 3NF allows. Keeping it is deliberate: the primary key can then enforce "each component of a subject assesses exactly one CLO", and the composite foreign key (clo_id, subject_id) guarantees the two can never disagree. Removing it would need a trigger for the same rule.
+- **cqi_actions.attainment_pct**: the class attainment the lecturer responded to, recorded with the action. Later mark changes don't rewrite it, so it is a fact about the action, not derived data.
 - **Generated columns**: `semesters.active_flag` and `account_requests.pending_email`. The database calculates them from other columns, so they can never disagree with their source. They exist only so a UNIQUE index can enforce "one active semester" and "one pending request per email". Under a strictly literal reading they are derived values, so those two tables are listed as 3NF rather than BCNF.

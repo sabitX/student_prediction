@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require '../includes/obe.php';
 
 // ── ONE-TIME SETUP GUARD ────────────────────────────────────────────────
 // Bootstrap utility for a fresh install only. The proper, ongoing way to
@@ -18,21 +19,24 @@ if ($any_subject_exists) {
     exit();
 }
 
+// Code, name, credit hours.
 $subjects = [
-    ['EC2301', 'Database Development'],
-    ['EC2302', 'Internet Programming'],
-    ['EC2303', 'Object Oriented Programming'],
-    ['EC2304', 'Computer Networks'],
-    ['EC2305', 'Human Computer Interaction'],
-    ['EC2306', 'Operating Systems'],
-    ['EC2320', 'Summative Computing Project'],
+    ['EC2301', 'Database Development',        3.0],
+    ['EC2302', 'Internet Programming',        3.0],
+    ['EC2303', 'Object Oriented Programming', 3.0],
+    ['EC2304', 'Computer Networks',           3.0],
+    ['EC2305', 'Human Computer Interaction',  3.0],
+    ['EC2306', 'Operating Systems',           3.0],
+    ['EC2320', 'Summative Computing Project', 4.0],
 ];
 
 $inserted = 0;
-$stmt_ins = mysqli_prepare($conn, "INSERT INTO subjects (subject_code, subject_name) VALUES (?, ?)");
+$stmt_ins = mysqli_prepare($conn, "INSERT INTO subjects (subject_code, subject_name, credit_hours) VALUES (?, ?, ?)");
 foreach ($subjects as $sub) {
-    mysqli_stmt_bind_param($stmt_ins, "ss", $sub[0], $sub[1]);
+    mysqli_stmt_bind_param($stmt_ins, "ssd", $sub[0], $sub[1], $sub[2]);
     if (mysqli_stmt_execute($stmt_ins)) {
+        // Default learning outcomes (CLO1–CLO4), edited later under Subjects.
+        obe_seed_subject($conn, mysqli_insert_id($conn));
         $inserted++;
     }
 }

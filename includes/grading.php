@@ -15,8 +15,21 @@
 // scale (A+/A/A-/B+.../F) for official GPA calculation — that's a
 // distinct business rule, not a duplicate of this one, and is untouched.
 
+// Weight of each mark component in the total. The predictions and
+// early_risk_predictions views (database/migrations) use the same numbers.
+const MARK_WEIGHTS = [
+    'assignment' => 0.20,
+    'midterm'    => 0.30,
+    'final_exam' => 0.40,
+    'attendance' => 0.10,
+];
+
+// Total needed for the "Pass" band; predict.php's target too.
+const PASS_MARK = 60;
+
 function compute_total_score($assignment, $midterm, $final_exam, $attendance) {
-    return ($assignment * 0.20) + ($midterm * 0.30) + ($final_exam * 0.40) + ($attendance * 0.10);
+    return ($assignment * MARK_WEIGHTS['assignment']) + ($midterm * MARK_WEIGHTS['midterm'])
+         + ($final_exam * MARK_WEIGHTS['final_exam']) + ($attendance * MARK_WEIGHTS['attendance']);
 }
 
 function predicted_status($total_score) {

@@ -32,7 +32,7 @@ $sidebar_menus = [
 ];
 
 // Detail pages highlight the list page they belong to.
-$sidebar_aliases = ['view_student.php' => 'manage_students.php'];
+$sidebar_aliases = ['view_student.php' => 'manage_students.php', 'subject_outcomes.php' => 'manage_subjects.php'];
 
 $sidebar_role   = $_SESSION['role'] ?? 'student';
 $sidebar_active = basename($_SERVER['PHP_SELF']);

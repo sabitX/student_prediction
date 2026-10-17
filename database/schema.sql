@@ -2,7 +2,7 @@
 -- Fresh install: create the database `student_prediction`
 -- (CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci), import this file as a
 -- user that can CREATE TRIGGER (e.g. root), then follow README
--- "First-time setup". Existing installs: run database/migrations/001–008
+-- "First-time setup". Existing installs: run database/migrations/001–009
 -- in order instead.
 --
 -- Generated from a database with all migrations applied, so a fresh
@@ -54,6 +54,34 @@ CREATE TABLE `audit_logs` (
   KEY `idx_audit_user_time` (`user_id`,`created_at`),
   KEY `idx_audit_time` (`created_at`),
   CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `clo_assessments` (
+  `subject_id` int(11) NOT NULL,
+  `component` enum('assignment','midterm','final_exam','attendance') NOT NULL,
+  `clo_id` int(11) NOT NULL,
+  PRIMARY KEY (`subject_id`,`component`),
+  KEY `idx_clo_assessment_clo` (`clo_id`,`subject_id`),
+  CONSTRAINT `clo_assessments_clo_fk` FOREIGN KEY (`clo_id`, `subject_id`) REFERENCES `subject_clos` (`id`, `subject_id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `cqi_actions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `clo_id` int(11) NOT NULL,
+  `semester_id` int(11) NOT NULL,
+  `attainment_pct` decimal(5,2) NOT NULL,
+  `root_cause` varchar(500) NOT NULL,
+  `remedial_plan` varchar(500) NOT NULL,
+  `logged_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_cqi_clo_semester` (`clo_id`,`semester_id`),
+  KEY `cqi_semester_fk` (`semester_id`),
+  KEY `cqi_user_fk` (`logged_by`),
+  CONSTRAINT `cqi_clo_fk` FOREIGN KEY (`clo_id`) REFERENCES `subject_clos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `cqi_semester_fk` FOREIGN KEY (`semester_id`) REFERENCES `semesters` (`id`),
+  CONSTRAINT `cqi_user_fk` FOREIGN KEY (`logged_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `lecturer_subjects` (
@@ -131,6 +159,18 @@ CREATE TABLE `performance` (
   CONSTRAINT `chk_performance_marks` CHECK ((`assignment` is null or `assignment` between 0 and 100) and (`midterm` is null or `midterm` between 0 and 100) and (`final_exam` is null or `final_exam` between 0 and 100) and (`attendance` is null or `attendance` between 0 and 100))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `plos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `plo_code` varchar(10) NOT NULL,
+  `plo_title` varchar(100) NOT NULL,
+  `description` varchar(255) NOT NULL,
+  `target_threshold` decimal(5,2) NOT NULL DEFAULT 50.00,
+  `cohort_kpi_pct` decimal(5,2) NOT NULL DEFAULT 80.00,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_plo_code` (`plo_code`),
+  CONSTRAINT `chk_plo_pcts` CHECK (`target_threshold` between 0 and 100 and `cohort_kpi_pct` between 0 and 100)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `semesters` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `semester_name` varchar(50) NOT NULL,
@@ -174,13 +214,30 @@ CREATE TABLE `students` (
   CONSTRAINT `chk_students_year` CHECK (`year_of_study` between 1 and 3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `subject_clos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `subject_id` int(11) NOT NULL,
+  `clo_code` enum('CLO1','CLO2','CLO3','CLO4') NOT NULL,
+  `clo_description` varchar(255) NOT NULL,
+  `bloom_level` enum('C1','C2','C3','C4','C5','C6','P1','P2','P3','P4','P5','P6','P7','A1','A2','A3','A4','A5') NOT NULL DEFAULT 'C3',
+  `plo_id` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_subject_clo` (`subject_id`,`clo_code`),
+  UNIQUE KEY `uniq_clo_subject` (`id`,`subject_id`),
+  KEY `idx_clo_plo` (`plo_id`),
+  CONSTRAINT `subject_clos_plo_fk` FOREIGN KEY (`plo_id`) REFERENCES `plos` (`id`),
+  CONSTRAINT `subject_clos_subject_fk` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `subjects` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `subject_code` varchar(20) NOT NULL,
   `subject_name` varchar(100) NOT NULL,
+  `credit_hours` decimal(3,1) NOT NULL DEFAULT 3.0,
   `is_archived` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `subject_code` (`subject_code`)
+  UNIQUE KEY `subject_code` (`subject_code`),
+  CONSTRAINT `chk_subject_credits` CHECK (`credit_hours` between 1.0 and 6.0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `users` (
@@ -216,6 +273,56 @@ WHERE p.assignment IS NOT NULL
   AND p.midterm    IS NOT NULL
   AND p.final_exam IS NOT NULL
   AND p.attendance IS NOT NULL;
+
+-- ── Programme Learning Outcomes every install starts with (migration 009).
+-- Subjects get default CLOs when added (includes/obe.php).
+INSERT IGNORE INTO plos (plo_code, plo_title, description, target_threshold, cohort_kpi_pct) VALUES
+('PLO1', 'Knowledge & Understanding',    'Demonstrate knowledge and understanding of computing fundamentals and theory.',          50.00, 80.00),
+('PLO2', 'Problem Analysis',             'Analyse, formulate and solve computing problems using analytical reasoning.',            50.00, 80.00),
+('PLO3', 'Practical & Technical Skills', 'Design, implement and evaluate computing solutions with modern tools.',                    50.00, 80.00),
+('PLO4', 'Professionalism & Engagement', 'Show professional responsibility, commitment and consistent attendance.',                 80.00, 80.00);
+
+-- ── Results from the marks so far, before the final exam (migration 009) ──
+CREATE ALGORITHM = MERGE SQL SECURITY INVOKER VIEW early_risk_predictions AS
+SELECT
+    p.student_id,
+    p.subject_id,
+    p.semester_id,
+    p.assignment,
+    p.midterm,
+    p.final_exam,
+    p.attendance,
+    CAST(  IF(p.assignment IS NULL, 0, 0.20) + IF(p.midterm    IS NULL, 0, 0.30)
+         + IF(p.final_exam IS NULL, 0, 0.40) + IF(p.attendance IS NULL, 0, 0.10) AS DECIMAL(3,2)) AS assessed_weight,
+    CAST(ROUND(
+        (  COALESCE(p.assignment * 0.20, 0) + COALESCE(p.midterm    * 0.30, 0)
+         + COALESCE(p.final_exam * 0.40, 0) + COALESCE(p.attendance * 0.10, 0))
+      / (  IF(p.assignment IS NULL, 0, 0.20) + IF(p.midterm    IS NULL, 0, 0.30)
+         + IF(p.final_exam IS NULL, 0, 0.40) + IF(p.attendance IS NULL, 0, 0.10)), 2) AS DECIMAL(5,2)) AS current_score,
+    CASE
+        WHEN ROUND((  COALESCE(p.assignment * 0.20, 0) + COALESCE(p.midterm    * 0.30, 0)
+                    + COALESCE(p.final_exam * 0.40, 0) + COALESCE(p.attendance * 0.10, 0))
+                 / (  IF(p.assignment IS NULL, 0, 0.20) + IF(p.midterm    IS NULL, 0, 0.30)
+                    + IF(p.final_exam IS NULL, 0, 0.40) + IF(p.attendance IS NULL, 0, 0.10)), 2) >= 80 THEN 'Excellent'
+        WHEN ROUND((  COALESCE(p.assignment * 0.20, 0) + COALESCE(p.midterm    * 0.30, 0)
+                    + COALESCE(p.final_exam * 0.40, 0) + COALESCE(p.attendance * 0.10, 0))
+                 / (  IF(p.assignment IS NULL, 0, 0.20) + IF(p.midterm    IS NULL, 0, 0.30)
+                    + IF(p.final_exam IS NULL, 0, 0.40) + IF(p.attendance IS NULL, 0, 0.10)), 2) >= 60 THEN 'Pass'
+        WHEN ROUND((  COALESCE(p.assignment * 0.20, 0) + COALESCE(p.midterm    * 0.30, 0)
+                    + COALESCE(p.final_exam * 0.40, 0) + COALESCE(p.attendance * 0.10, 0))
+                 / (  IF(p.assignment IS NULL, 0, 0.20) + IF(p.midterm    IS NULL, 0, 0.30)
+                    + IF(p.final_exam IS NULL, 0, 0.40) + IF(p.attendance IS NULL, 0, 0.10)), 2) >= 50 THEN 'At Risk'
+        ELSE 'Fail'
+    END COLLATE utf8mb4_unicode_ci AS current_status,
+    CAST(IF(p.final_exam IS NULL AND p.assignment IS NOT NULL AND p.midterm IS NOT NULL AND p.attendance IS NOT NULL,
+            GREATEST(0, ROUND((60 - (p.assignment * 0.20 + p.midterm * 0.30 + p.attendance * 0.10)) / 0.40, 2)),
+            NULL) AS DECIMAL(6,2)) AS min_final_to_pass,
+    IF(p.attendance IS NOT NULL AND p.attendance < 80, 1, 0) AS attendance_below_bar
+FROM performance p
+WHERE p.assignment IS NOT NULL
+   OR p.midterm    IS NOT NULL
+   OR p.final_exam IS NOT NULL
+   OR p.attendance IS NOT NULL;
 
 -- ── Rules a foreign key can't express (see migrations 004 and 005) ─────
 DELIMITER $$
