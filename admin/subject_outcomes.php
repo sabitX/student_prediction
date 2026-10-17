@@ -97,6 +97,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
         mysqli_commit($conn);
         $success = "Learning outcomes for {$subject['subject_code']} saved.";
     }
+
+// ── Programme Learning Outcomes (shared by every subject) ──────────────
+} elseif (isset($_POST['save_plos'])) {
+    $posted  = is_array($_POST['plo'] ?? null) ? $_POST['plo'] : [];
+    $updates = [];
+    foreach ($plos as $id => $plo) {
+        $in     = is_array($posted[$id] ?? null) ? $posted[$id] : [];
+        $title  = trim(is_string($in['title'] ?? null) ? $in['title'] : '');
+        $desc   = trim(is_string($in['description'] ?? null) ? $in['description'] : '');
+        $target = $in['target'] ?? '';
+        $kpi    = $in['kpi'] ?? '';
+        if ($title === '' || mb_strlen($title) > 100 || $desc === '' || mb_strlen($desc) > 255) {
+            $error = "{$plo['plo_code']} needs a title (max 100 characters) and a description (max 255).";
+        } elseif (!is_numeric($target) || !is_numeric($kpi) || $target < 0 || $target > 100 || $kpi < 0 || $kpi > 100) {
+            $error = "{$plo['plo_code']}: target and class KPI must be percentages from 0 to 100.";
+        }
+        if ($error) break;
+        $updates[] = [$title, $desc, round((float)$target, 2), round((float)$kpi, 2), $id];
+    }
+    if (!$error) {
+        mysqli_begin_transaction($conn);
+        foreach ($updates as $u) {
+            $stmt = mysqli_prepare($conn, "UPDATE plos SET plo_title = ?, description = ?, target_threshold = ?, cohort_kpi_pct = ? WHERE id = ?");
+            mysqli_stmt_bind_param($stmt, "ssddi", ...$u);
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_close($stmt);
+        }
+        audit_log($conn, 'Programme outcomes edited', implode('; ', array_map(
+            fn($u) => $plos[$u[4]]['plo_code'] . ": {$u[0]} (target {$u[2]}%, KPI {$u[3]}%)", $updates)));
+        mysqli_commit($conn);
+        $success = "Programme learning outcomes saved. They apply to every subject.";
+    }
 }
 
 redirect_after_success($success, $error);
@@ -213,26 +245,37 @@ require '../includes/page_start.php';
             <div class="col-lg-6">
                 <div class="dashboard-card">
                     <div class="card-header-title"><i class="bi bi-mortarboard text-primary"></i>Programme Learning Outcomes</div>
-                    <table class="table mb-0" style="font-size:0.84rem;">
-                        <thead><tr><th>PLO</th><th>Outcome</th><th class="text-center">Target</th><th class="text-center">Class KPI</th></tr></thead>
-                        <tbody>
-                        <?php foreach ($plos as $plo): ?>
-                            <tr title="<?php echo h($plo['description']); ?>">
-                                <td class="fw-bold"><?php echo h($plo['plo_code']); ?></td>
-                                <td><?php echo h($plo['plo_title']); ?></td>
-                                <td class="text-center"><?php echo number_format((float)$plo['target_threshold'], 0); ?>%</td>
-                                <td class="text-center"><?php echo number_format((float)$plo['cohort_kpi_pct'], 0); ?>%</td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                    <p class="text-muted mt-3 mb-0" style="font-size:0.78rem;">
-                        A student attains a CLO when their score on it reaches its PLO's target. When fewer than the KPI share
-                        of the class attain a CLO, the lecturer is asked to record a CQI action.
+                    <p class="text-muted" style="font-size:0.78rem;">
+                        Shared by every subject. A student attains a CLO when their score on it reaches its PLO's target; when fewer
+                        than the KPI share of the class attain a CLO, the lecturer is asked to record a CQI action.
                     </p>
+                    <?php foreach ($plos as $plo): $pid = (int)$plo['id']; ?>
+                    <div class="border-top pt-2 mt-2">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-xl-7">
+                                <label class="form-label mb-1" for="plo_title_<?php echo $pid; ?>"><?php echo h($plo['plo_code']); ?></label>
+                                <input type="text" form="ploForm" name="plo[<?php echo $pid; ?>][title]" id="plo_title_<?php echo $pid; ?>" class="form-control form-control-sm" required maxlength="100" value="<?php echo h($plo['plo_title']); ?>">
+                            </div>
+                            <div class="col-6 col-xl-2">
+                                <label class="form-label mb-1" style="font-size:0.75rem;" for="plo_target_<?php echo $pid; ?>">Target %</label>
+                                <input type="number" form="ploForm" name="plo[<?php echo $pid; ?>][target]" id="plo_target_<?php echo $pid; ?>" class="form-control form-control-sm" required min="0" max="100" step="0.01" value="<?php echo h((float)$plo['target_threshold']); ?>">
+                            </div>
+                            <div class="col-6 col-xl-3">
+                                <label class="form-label mb-1" style="font-size:0.75rem;" for="plo_kpi_<?php echo $pid; ?>">Class KPI %</label>
+                                <input type="number" form="ploForm" name="plo[<?php echo $pid; ?>][kpi]" id="plo_kpi_<?php echo $pid; ?>" class="form-control form-control-sm" required min="0" max="100" step="0.01" value="<?php echo h((float)$plo['cohort_kpi_pct']); ?>">
+                            </div>
+                            <div class="col-12">
+                                <input type="text" form="ploForm" name="plo[<?php echo $pid; ?>][description]" class="form-control form-control-sm" required maxlength="255" value="<?php echo h($plo['description']); ?>" aria-label="<?php echo h($plo['plo_code']); ?> description">
+                            </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                    <button type="submit" form="ploForm" name="save_plos" class="btn btn-outline-secondary w-100 mt-3"><i class="bi bi-check-lg me-1"></i>Save Programme Outcomes</button>
                 </div>
             </div>
         </div>
     </form>
+    <!-- The PLO fields above belong to this form (form="ploForm"). -->
+    <form method="POST" id="ploForm"><?php echo csrf_field(); ?></form>
     </div>
 <?php require '../includes/page_end.php'; ?>

@@ -177,6 +177,91 @@ function early_warnings($conn, $semester_id, $by, $id) {
     return $rows;
 }
 
+// ── Backtest: how well would the early warning have done? ───────────────
+// Replays every finished result (all four marks) as if the final exam
+// hadn't been marked yet, runs ew_analyse() on it, and compares the
+// warning with what actually happened (total below PASS_MARK).
+// Two checkpoints:
+//   'coursework'  assignment, midterm and attendance known (just before the final)
+//   'early'       only assignment and attendance known (before the midterm),
+//                 where the prior (earlier results / class average) carries weight
+// Class statistics come from the same replayed checkpoint, so nothing from
+// the future leaks in. For each checkpoint also reports the projection
+// error without the prior, to show whether blending it in helps.
+const BACKTEST_CHECKPOINTS = [
+    'coursework' => ['label' => 'Before the final exam', 'known' => ['assignment', 'midterm', 'attendance']],
+    'early'      => ['label' => 'Before the midterm',    'known' => ['assignment', 'attendance']],
+];
+
+function ew_backtest($conn) {
+    $rows = mysqli_fetch_all(mysqli_query($conn,
+        "SELECT p.student_id, p.subject_id, p.semester_id, p.assignment, p.midterm, p.final_exam, p.attendance, pr.total_score
+         FROM performance p
+         JOIN predictions pr ON pr.student_id = p.student_id AND pr.subject_id = p.subject_id AND pr.semester_id = p.semester_id"),
+        MYSQLI_ASSOC);
+
+    $prior = [];   // [semester_id => [student_id => avg]]
+    foreach (array_unique(array_column($rows, 'semester_id')) as $sem) {
+        $ids = array_column(array_filter($rows, fn($r) => $r['semester_id'] == $sem), 'student_id');
+        $prior[$sem] = ew_prior_scores($conn, $ids, (int)$sem);
+    }
+
+    $out = [];
+    foreach (BACKTEST_CHECKPOINTS as $key => $cp) {
+        $weight = array_sum(array_map(fn($c) => MARK_WEIGHTS[$c], $cp['known']));
+        // Replayed rows: unknown components blanked, scores recomputed.
+        $replay = [];
+        foreach ($rows as $r) {
+            $x = $r;
+            foreach (MARK_WEIGHTS as $c => $w) {
+                if (!in_array($c, $cp['known'], true)) $x[$c] = null;
+            }
+            $points = 0.0;
+            foreach ($cp['known'] as $c) $points += (float)$r[$c] * MARK_WEIGHTS[$c];
+            $x['assessed_weight']   = $weight;
+            $x['current_score']     = round($points / $weight, 2);
+            $x['min_final_to_pass'] = count($cp['known']) === 3 ? max(0, round((PASS_MARK - $points) / MARK_WEIGHTS['final_exam'], 2)) : null;
+            $replay[] = $x;
+        }
+        // Class statistics per subject and semester at this checkpoint.
+        $groups = [];
+        foreach ($replay as $x) $groups[$x['subject_id'] . ':' . $x['semester_id']][] = $x;
+        $cohorts = [];
+        foreach ($groups as $g => $xs) {
+            $c = ['avg_current' => array_sum(array_column($xs, 'current_score')) / count($xs)];
+            foreach (['assignment', 'midterm'] as $k) {
+                $vals = array_map('floatval', array_filter(array_column($xs, $k), fn($v) => $v !== null));
+                $n = count($vals);
+                $avg = $n ? array_sum($vals) / $n : null;
+                $c["n_$k"]   = $n;
+                $c["avg_$k"] = $avg;
+                $c["sd_$k"]  = $n ? sqrt(array_sum(array_map(fn($v) => ($v - $avg) ** 2, $vals)) / $n) : null;
+            }
+            $cohorts[$g] = $c;
+        }
+
+        $m = ['label' => $cp['label'], 'n' => 0, 'tp' => 0, 'fp' => 0, 'fn' => 0, 'tn' => 0, 'abs_err' => 0.0, 'abs_err_no_prior' => 0.0];
+        foreach ($replay as $x) {
+            $a = ew_analyse($x, $prior[$x['semester_id']][(int)$x['student_id']] ?? null,
+                            $cohorts[$x['subject_id'] . ':' . $x['semester_id']]);
+            $flagged = $a['level'] !== 'ok';
+            $failed  = (float)$x['total_score'] < PASS_MARK;
+            $m['n']++;
+            $m[$flagged ? ($failed ? 'tp' : 'fp') : ($failed ? 'fn' : 'tn')]++;
+            $m['abs_err']          += abs($a['projected'] - (float)$x['total_score']);
+            $m['abs_err_no_prior'] += abs((float)$x['current_score'] - (float)$x['total_score']);
+        }
+        $n = $m['n'];
+        $m['accuracy']      = $n ? ($m['tp'] + $m['tn']) / $n : null;
+        $m['precision']     = ($m['tp'] + $m['fp']) ? $m['tp'] / ($m['tp'] + $m['fp']) : null;
+        $m['recall']        = ($m['tp'] + $m['fn']) ? $m['tp'] / ($m['tp'] + $m['fn']) : null;
+        $m['mae']           = $n ? $m['abs_err'] / $n : null;
+        $m['mae_no_prior']  = $n ? $m['abs_err_no_prior'] / $n : null;
+        $out[$key] = $m;
+    }
+    return $out;
+}
+
 // Badge classes (assets/css/app.css) for a risk level.
 function risk_badge_class($level) {
     return status_badge_class(match ($level) {

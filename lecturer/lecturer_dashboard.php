@@ -222,7 +222,7 @@ require '../includes/page_start.php';
                 <div class="stat-card border-yellow">
                     <h3 class="text-yellow"><?php echo $at_risk; ?></h3>
                     <p>At Risk</p>
-                    <small>needs attention</small>
+                    <small>needs attention<?php echo $roster ? ' · + ' . count($roster) . ' early warning' . (count($roster) == 1 ? '' : 's') : ''; ?></small>
                 </div>
             </div>
             <div class="col-md-3">

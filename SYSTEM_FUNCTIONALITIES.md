@@ -157,6 +157,12 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
 - **Credit hours** (1–6, steps of 0.5) on Add and Edit; the transcript's GPA uses them.
 - **Edit** (modal): rename the subject, change its credit hours, and change or remove its lecturer (one lecturer per subject).
 - **Outcomes** ([subject_outcomes.php](admin/subject_outcomes.php)): word CLO1–CLO4, tag each with a Bloom's level and a PLO, and choose which CLO each mark component assesses. Shows this semester's attainment per CLO. New subjects start with default outcomes.
+- **Programme outcomes** (same page, shared by every subject): edit each PLO's title, description, target score and class KPI.
+
+### 5.3a Early-Warning Accuracy — [model_evaluation.php](admin/model_evaluation.php)
+- Replays every finished result as if the later marks weren't in yet (before the final exam, and before the midterm) and runs the same warning rules the dashboards use.
+- Shows how many students who ended below 60% would have been flagged (recall), how many flagged students did end below 60% (precision), accuracy, a flagged/not-flagged table, and the average projection error with and without blending in earlier results.
+- Class averages come from the replayed marks only, so nothing from the final exam leaks in. Warns when there are fewer than 30 finished results.
 - **Unassign** lecturer, **Archive** (soft delete), and **Restore** from the Archived Subjects list.
 - Archived subjects are hidden from lecturers, students, the CSV upload and the dashboard chart; their history is kept.
 

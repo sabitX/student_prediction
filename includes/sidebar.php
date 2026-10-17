@@ -13,6 +13,7 @@ $sidebar_menus = [
         ['manage_students.php',    'bi-people',         'Students'],
         ['manage_lecturers.php',   'bi-person-badge',   'Staff'],
         ['manage_semesters.php',   'bi-calendar3',      'Semesters'],
+        ['model_evaluation.php',   'bi-clipboard-data', 'Warning Accuracy'],
         ['account_requests.php',   'bi-person-plus',    'Account Requests'],
         ['password_requests.php',  'bi-key',            'Password Requests'],
         ['audit_logs.php',         'bi-clock-history',  'Audit Log'],
