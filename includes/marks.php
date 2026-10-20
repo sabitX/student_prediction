@@ -10,8 +10,8 @@
 //  • A weighted total + status (the predictions view) exists only once
 //    all four components are present; the database calculates it from
 //    the marks, so it is never stored separately.
-//  • Rows are keyed by (student, subject, semester) with UNIQUE indexes,
-//    so writes are single atomic upserts — no duplicate rows.
+//  • A marks row belongs to one enrolment (keyed by enrollment_id), so
+//    writes are single atomic upserts — no duplicate rows.
 //  • An audit entry records old → new values, and only when something
 //    actually changed.
 
@@ -84,8 +84,9 @@ function is_enrolled($conn, $student_db_id, $subject_id, $semester_id) {
 // so callers can roll back their transaction.
 function save_student_marks($conn, $student_db_id, $subject_id, $semester_id, array $marks, array $ctx) {
     // Existing values, for change detection and the audit trail.
-    $stmt = mysqli_prepare($conn, "SELECT assignment, midterm, final_exam, attendance FROM performance
-                                   WHERE student_id = ? AND subject_id = ? AND semester_id = ?");
+    $stmt = mysqli_prepare($conn, "SELECT p.assignment, p.midterm, p.final_exam, p.attendance
+                                   FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id
+                                   WHERE e.student_id = ? AND e.subject_id = ? AND e.semester_id = ?");
     mysqli_stmt_bind_param($stmt, "iii", $student_db_id, $subject_id, $semester_id);
     mysqli_stmt_execute($stmt);
     $old = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
@@ -103,12 +104,15 @@ function save_student_marks($conn, $student_db_id, $subject_id, $semester_id, ar
         return 'unchanged';
     }
 
-    $stmt = mysqli_prepare($conn, "INSERT INTO performance (student_id, subject_id, semester_id, assignment, midterm, final_exam, attendance)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?)
+    // Marks belong to the enrolment (performance.enrollment_id, migration
+    // 010); callers have already checked the student is enrolled.
+    $stmt = mysqli_prepare($conn, "INSERT INTO performance (enrollment_id, assignment, midterm, final_exam, attendance)
+                                   SELECT id, ?, ?, ?, ? FROM student_enrollments
+                                   WHERE student_id = ? AND subject_id = ? AND semester_id = ?
                                    ON DUPLICATE KEY UPDATE assignment = VALUES(assignment), midterm = VALUES(midterm),
                                                            final_exam = VALUES(final_exam), attendance = VALUES(attendance)");
-    mysqli_stmt_bind_param($stmt, "iiidddd", $student_db_id, $subject_id, $semester_id,
-                           $marks['assignment'], $marks['midterm'], $marks['final_exam'], $marks['attendance']);
+    mysqli_stmt_bind_param($stmt, "ddddiii", $marks['assignment'], $marks['midterm'], $marks['final_exam'], $marks['attendance'],
+                           $student_db_id, $subject_id, $semester_id);
     mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
 

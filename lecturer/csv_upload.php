@@ -34,7 +34,8 @@ const CSV_ESCAPE = '';
 // archived. Keyed by upper-case subject code.
 $stmt_mine = mysqli_prepare($conn, "SELECT sub.id, sub.subject_code FROM lecturer_subjects ls
                                     JOIN subjects sub ON sub.id = ls.subject_id
-                                    WHERE ls.user_id = ? AND sub.is_archived = 0");
+                                    WHERE ls.user_id = ? AND sub.is_archived = 0
+                                      AND ls.semester_id = (SELECT id FROM semesters WHERE is_active = 1)");
 mysqli_stmt_bind_param($stmt_mine, "i", $user_id);
 mysqli_stmt_execute($stmt_mine);
 $my_subjects = [];
@@ -58,7 +59,7 @@ if (isset($_GET['download_template'])) {
                                        FROM student_enrollments e
                                        JOIN students s ON s.id = e.student_id
                                        JOIN subjects sub ON sub.id = e.subject_id
-                                       LEFT JOIN performance p ON p.student_id = e.student_id AND p.subject_id = e.subject_id AND p.semester_id = e.semester_id
+                                       LEFT JOIN performance p ON p.enrollment_id = e.id
                                        WHERE e.semester_id = $semester_id AND e.subject_id IN ($ids)
                                        ORDER BY sub.subject_code, s.student_id");
         while ($r = mysqli_fetch_assoc($roster)) {

@@ -68,7 +68,7 @@ foreach (mysqli_fetch_all(mysqli_query($conn, "SELECT id, subject_code FROM subj
 // and averages aren't multiplied by each other.
 require '../includes/pagination.php';
 $list   = list_params();
-$filter = "FROM students s JOIN users u ON s.user_id = u.id";
+$filter = "FROM students s JOIN users u ON s.user_id = u.id JOIN courses c ON c.id = s.course_id";
 $types  = '';
 $params = [];
 if ($list['q'] !== '') {
@@ -84,7 +84,7 @@ $roster_total = (int)mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['n'];
 mysqli_stmt_close($stmt);
 $list = list_clamp($list, $roster_total);
 
-$stmt = mysqli_prepare($conn, "SELECT s.id as std_db_id, s.student_id, u.full_name, s.course, s.year_of_study,
+$stmt = mysqli_prepare($conn, "SELECT s.id as std_db_id, s.student_id, u.full_name, c.course_name AS course, s.year_of_study,
                                       (SELECT COUNT(*) FROM student_enrollments e WHERE e.student_id = s.id AND e.semester_id = ?) AS subjects_entered,
                                       (SELECT AVG(pr.total_score) FROM predictions pr WHERE pr.student_id = s.id AND pr.semester_id = ?) AS avg_score
                                $filter

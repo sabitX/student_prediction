@@ -42,7 +42,8 @@ mysqli_stmt_close($stmt_subs);
 if (isset($_GET['get_marks']) && isset($_GET['subject_id'])) {
     $subject_id = (int)$_GET['subject_id'];
 
-    $stmt_ajax = mysqli_prepare($conn, "SELECT assignment, midterm, attendance FROM performance WHERE student_id = ? AND subject_id = ? AND semester_id = ?");
+    $stmt_ajax = mysqli_prepare($conn, "SELECT p.assignment, p.midterm, p.attendance FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id
+                                         WHERE e.student_id = ? AND e.subject_id = ? AND e.semester_id = ?");
     mysqli_stmt_bind_param($stmt_ajax, "iii", $student_db_id, $subject_id, $semester_id);
     mysqli_stmt_execute($stmt_ajax);
     $marks = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_ajax));
@@ -336,9 +337,10 @@ require '../includes/page_start.php';
             $stmt_off = mysqli_prepare($conn,
                 "SELECT p.*, sub.subject_name, sub.subject_code, pr.total_score, pr.predicted_status
                  FROM performance p
-                 JOIN subjects sub ON p.subject_id = sub.id
-                 LEFT JOIN predictions pr ON pr.student_id = p.student_id AND pr.subject_id = p.subject_id AND pr.semester_id = p.semester_id
-                 WHERE p.student_id = ? AND p.semester_id = ?");
+                 JOIN student_enrollments e ON e.id = p.enrollment_id
+                 JOIN subjects sub ON e.subject_id = sub.id
+                 LEFT JOIN predictions pr ON pr.student_id = e.student_id AND pr.subject_id = e.subject_id AND pr.semester_id = e.semester_id
+                 WHERE e.student_id = ? AND e.semester_id = ?");
             mysqli_stmt_bind_param($stmt_off, "ii", $student_db_id, $semester_id);
             mysqli_stmt_execute($stmt_off);
             $official = mysqli_stmt_get_result($stmt_off);

@@ -24,7 +24,8 @@ $back        = "../lecturer/enter_marks.php?subject_id=" . $subject_id;
 // lecturer is actually assigned to it, and that it isn't archived. ────────
 $stmt_own = mysqli_prepare($conn, "SELECT sub.subject_code FROM lecturer_subjects ls
                                    JOIN subjects sub ON sub.id = ls.subject_id
-                                   WHERE ls.user_id = ? AND ls.subject_id = ? AND sub.is_archived = 0");
+                                   WHERE ls.user_id = ? AND ls.subject_id = ? AND sub.is_archived = 0
+                                     AND ls.semester_id = (SELECT id FROM semesters WHERE is_active = 1)");
 mysqli_stmt_bind_param($stmt_own, "ii", $user_id, $subject_id);
 mysqli_stmt_execute($stmt_own);
 $subject = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_own));
@@ -91,7 +92,7 @@ try {
             // The grid is pre-filled, so an all-blank row means either "no
             // marks yet" (skip — never create an empty row) or the lecturer
             // deliberately cleared existing marks (save, and it's audited).
-            $stmt_has = mysqli_prepare($conn, "SELECT 1 FROM performance WHERE student_id = ? AND subject_id = ? AND semester_id = ?");
+            $stmt_has = mysqli_prepare($conn, "SELECT 1 FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id WHERE e.student_id = ? AND e.subject_id = ? AND e.semester_id = ?");
             mysqli_stmt_bind_param($stmt_has, "iii", $std_db_id, $subject_id, $semester_id);
             mysqli_stmt_execute($stmt_has);
             $has_marks = mysqli_num_rows(mysqli_stmt_get_result($stmt_has)) > 0;

@@ -84,18 +84,19 @@ if (isset($_POST['request_id'])) {
 
                 mysqli_begin_transaction($conn);
                 try {
-                    $stmt = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password, role, must_change_password) VALUES (?, ?, ?, ?, 1)");
+                    $stmt = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password_hash, role, must_change_password) VALUES (?, ?, ?, ?, 1)");
                     mysqli_stmt_bind_param($stmt, "ssss", $req['full_name'], $req['email'], $hash, $role);
                     mysqli_stmt_execute($stmt);
                     $new_user_id = mysqli_insert_id($conn);
                     mysqli_stmt_close($stmt);
 
                     if ($is_student) {
-                        // Academic level comes from the Student ID, as everywhere else.
-                        $level = detect_academic_level($req['student_id']);
-                        $year  = (int)$req['year_of_study'];
-                        $stmt = mysqli_prepare($conn, "INSERT INTO students (user_id, student_id, course, academic_level, year_of_study) VALUES (?, ?, ?, ?, ?)");
-                        mysqli_stmt_bind_param($stmt, "isssi", $new_user_id, $req['student_id'], $req['course'], $level, $year);
+                        // The programme was checked against the Student ID's level
+                        // above; the level itself lives on the course.
+                        $course_id = course_id_for($conn, $req['course']);
+                        $year      = (int)$req['year_of_study'];
+                        $stmt = mysqli_prepare($conn, "INSERT INTO students (user_id, student_id, course_id, year_of_study) VALUES (?, ?, ?, ?)");
+                        mysqli_stmt_bind_param($stmt, "isii", $new_user_id, $req['student_id'], $course_id, $year);
                         mysqli_stmt_execute($stmt);
                         mysqli_stmt_close($stmt);
                     }

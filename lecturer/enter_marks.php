@@ -25,6 +25,7 @@ $semester_id = get_active_semester_id($conn);
 $stmt_my_subs = mysqli_prepare($conn, "SELECT sub.id, sub.subject_code, sub.subject_name
                                        FROM lecturer_subjects ls JOIN subjects sub ON sub.id = ls.subject_id
                                        WHERE ls.user_id = ? AND sub.is_archived = 0
+                                         AND ls.semester_id = (SELECT id FROM semesters WHERE is_active = 1)
                                        ORDER BY sub.subject_code");
 mysqli_stmt_bind_param($stmt_my_subs, "i", $user_id);
 mysqli_stmt_execute($stmt_my_subs);
@@ -59,13 +60,14 @@ if (!$no_subjects_assigned) {
 
     // Only students enrolled in this subject for the active semester.
     $stmt_grid = mysqli_prepare($conn,
-        "SELECT s.id as std_db_id, s.student_id, s.academic_level, u.full_name,
+        "SELECT s.id as std_db_id, s.student_id, c.academic_level, u.full_name,
                  p.assignment, p.midterm, p.final_exam, p.attendance,
                  pr.total_score, pr.predicted_status
          FROM student_enrollments e
          JOIN students s ON s.id = e.student_id
+         JOIN courses c ON c.id = s.course_id
          JOIN users u ON s.user_id = u.id
-         LEFT JOIN performance p ON p.student_id = s.id AND p.subject_id = e.subject_id AND p.semester_id = e.semester_id
+         LEFT JOIN performance p ON p.enrollment_id = e.id
          LEFT JOIN predictions pr ON pr.student_id = s.id AND pr.subject_id = e.subject_id AND pr.semester_id = e.semester_id
          WHERE e.subject_id = ? AND e.semester_id = ?
          ORDER BY u.full_name");

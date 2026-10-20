@@ -132,7 +132,8 @@ function obe_clo_label(array $clo) {
 // [plo_id => plo + ['score' => weighted average of their CLO scores
 // (null if none yet), 'attained' => bool|null, 'clos' => count]].
 function obe_student_plo($conn, $student_db_id) {
-    $stmt = mysqli_prepare($conn, "SELECT subject_id, assignment, midterm, final_exam, attendance FROM performance WHERE student_id = ?");
+    $stmt = mysqli_prepare($conn, "SELECT e.subject_id, p.assignment, p.midterm, p.final_exam, p.attendance
+                                   FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id WHERE e.student_id = ?");
     mysqli_stmt_bind_param($stmt, "i", $student_db_id);
     mysqli_stmt_execute($stmt);
     $rows = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
@@ -169,7 +170,9 @@ function obe_cohort_clo($conn, $subject_id, $semester_id) {
     if (!$clos) {
         return [];
     }
-    $stmt = mysqli_prepare($conn, "SELECT assignment, midterm, final_exam, attendance FROM performance WHERE subject_id = ? AND semester_id = ?");
+    $stmt = mysqli_prepare($conn, "SELECT p.assignment, p.midterm, p.final_exam, p.attendance
+                                   FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id
+                                   WHERE e.subject_id = ? AND e.semester_id = ?");
     mysqli_stmt_bind_param($stmt, "ii", $subject_id, $semester_id);
     mysqli_stmt_execute($stmt);
     $rows = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
@@ -209,9 +212,11 @@ function obe_cohort_clo($conn, $subject_id, $semester_id) {
 // results (active subjects) that met the PLO's target.
 // [plo_id => plo + ['results', 'attained', 'pct' (null if none)]].
 function obe_institution_plo($conn, $semester_id) {
-    $stmt = mysqli_prepare($conn, "SELECT p.subject_id, p.assignment, p.midterm, p.final_exam, p.attendance
-                                   FROM performance p JOIN subjects sub ON sub.id = p.subject_id AND sub.is_archived = 0
-                                   WHERE p.semester_id = ?");
+    $stmt = mysqli_prepare($conn, "SELECT e.subject_id, p.assignment, p.midterm, p.final_exam, p.attendance
+                                   FROM performance p
+                                   JOIN student_enrollments e ON e.id = p.enrollment_id
+                                   JOIN subjects sub ON sub.id = e.subject_id AND sub.is_archived = 0
+                                   WHERE e.semester_id = ?");
     mysqli_stmt_bind_param($stmt, "i", $semester_id);
     mysqli_stmt_execute($stmt);
     $rows = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
@@ -257,9 +262,9 @@ function obe_save_cqi($conn, $lecturer_id, $clo_id, $semester_id, $root_cause, $
 
     $stmt = mysqli_prepare($conn, "SELECT c.subject_id, c.clo_code, sub.subject_code FROM subject_clos c
                                    JOIN subjects sub ON sub.id = c.subject_id AND sub.is_archived = 0
-                                   JOIN lecturer_subjects ls ON ls.subject_id = c.subject_id AND ls.user_id = ?
+                                   JOIN lecturer_subjects ls ON ls.subject_id = c.subject_id AND ls.user_id = ? AND ls.semester_id = ?
                                    WHERE c.id = ?");
-    mysqli_stmt_bind_param($stmt, "ii", $lecturer_id, $clo_id);
+    mysqli_stmt_bind_param($stmt, "iii", $lecturer_id, $semester_id, $clo_id);
     mysqli_stmt_execute($stmt);
     $clo = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
     mysqli_stmt_close($stmt);

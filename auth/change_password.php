@@ -19,23 +19,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new     = $_POST['new_password'] ?? '';
         $confirm = $_POST['confirm_password'] ?? '';
 
-        $stmt = mysqli_prepare($conn, "SELECT password FROM users WHERE id = ?");
+        $stmt = mysqli_prepare($conn, "SELECT password_hash FROM users WHERE id = ?");
         mysqli_stmt_bind_param($stmt, "i", $user_id);
         mysqli_stmt_execute($stmt);
         $row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
         mysqli_stmt_close($stmt);
 
-        if (!$row || !password_verify($current, $row['password'])) {
+        if (!$row || !password_verify($current, $row['password_hash'])) {
             $error = "Your current password is incorrect.";
         } elseif ($new !== $confirm) {
             $error = "New passwords do not match.";
         } elseif (($policy = password_policy_error($new)) !== '') {
             $error = $policy;
-        } elseif (password_verify($new, $row['password'])) {
+        } elseif (password_verify($new, $row['password_hash'])) {
             $error = "Your new password must be different from the current one.";
         } else {
             $hash = password_hash($new, PASSWORD_DEFAULT);
-            $stmt = mysqli_prepare($conn, "UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?");
+            $stmt = mysqli_prepare($conn, "UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?");
             mysqli_stmt_bind_param($stmt, "si", $hash, $user_id);
             mysqli_stmt_execute($stmt);
             mysqli_stmt_close($stmt);

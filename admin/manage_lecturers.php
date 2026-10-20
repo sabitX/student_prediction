@@ -54,7 +54,7 @@ if (isset($_POST['add_lecturer'])) {
             } else {
                 // The starting password is temporary: it must be changed at first login.
                 $password = password_hash($password_raw, PASSWORD_DEFAULT);
-                $stmt_insert = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password, role, must_change_password) VALUES (?, ?, ?, ?, 1)");
+                $stmt_insert = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password_hash, role, must_change_password) VALUES (?, ?, ?, ?, 1)");
                 mysqli_stmt_bind_param($stmt_insert, "ssss", $new_name, $new_email, $password, $new_role);
                 mysqli_stmt_execute($stmt_insert);
                 mysqli_stmt_close($stmt_insert);
@@ -128,7 +128,7 @@ redirect_after_success($success, $error, ['issued' => $issued]);
 // ── SECURE QUERY: Fetch staff (lecturers and administrators) ───────────
 $lecturers_query = "SELECT u.*, GROUP_CONCAT(s.subject_name SEPARATOR ', ') as subjects
                     FROM users u
-                    LEFT JOIN lecturer_subjects ls ON ls.user_id = u.id
+                    LEFT JOIN lecturer_subjects ls ON ls.user_id = u.id AND ls.semester_id = (SELECT id FROM semesters WHERE is_active = 1)
                     LEFT JOIN subjects s ON s.id = ls.subject_id
                     WHERE u.role IN ('lecturer', 'admin')
                     GROUP BY u.id

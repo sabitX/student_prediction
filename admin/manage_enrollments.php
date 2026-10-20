@@ -61,7 +61,7 @@ if (isset($_POST['save_enrolments'])) {
         }
         mysqli_stmt_close($stmt_add);
 
-        $stmt_has = mysqli_prepare($conn, "SELECT 1 FROM performance WHERE student_id = ? AND subject_id = ? AND semester_id = ?");
+        $stmt_has = mysqli_prepare($conn, "SELECT 1 FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id WHERE e.student_id = ? AND e.subject_id = ? AND e.semester_id = ?");
         $stmt_del = mysqli_prepare($conn, "DELETE FROM student_enrollments WHERE student_id = ? AND subject_id = ? AND semester_id = ?");
         foreach ($to_remove as $sid) {
             mysqli_stmt_bind_param($stmt_has, "iii", $sid, $subject_id, $semester_id);
@@ -128,11 +128,11 @@ if ($subject_id && $semester_id) {
         array_push($params, like_pattern($list['q']), like_pattern($list['q']));
     }
     if ($level !== '') {
-        $conds[] = "s.academic_level = ?";
+        $conds[] = "c.academic_level = ?";
         $types  .= 's';
         $params[] = $level;
     }
-    $filter = "FROM students s JOIN users u ON u.id = s.user_id" . ($conds ? ' WHERE ' . implode(' AND ', $conds) : '');
+    $filter = "FROM students s JOIN users u ON u.id = s.user_id JOIN courses c ON c.id = s.course_id" . ($conds ? ' WHERE ' . implode(' AND ', $conds) : '');
 
     $stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS n $filter");
     if ($params) mysqli_stmt_bind_param($stmt, $types, ...$params);
@@ -141,9 +141,9 @@ if ($subject_id && $semester_id) {
     mysqli_stmt_close($stmt);
     $list = list_clamp($list, $students_total);
 
-    $stmt = mysqli_prepare($conn, "SELECT s.id, s.student_id, s.academic_level, s.course, u.full_name,
+    $stmt = mysqli_prepare($conn, "SELECT s.id, s.student_id, c.academic_level, c.course_name AS course, u.full_name,
                                           EXISTS(SELECT 1 FROM student_enrollments e WHERE e.student_id = s.id AND e.subject_id = ? AND e.semester_id = ?) AS enrolled,
-                                          EXISTS(SELECT 1 FROM performance p WHERE p.student_id = s.id AND p.subject_id = ? AND p.semester_id = ?) AS has_marks
+                                          EXISTS(SELECT 1 FROM performance p JOIN student_enrollments pe ON pe.id = p.enrollment_id WHERE pe.student_id = s.id AND pe.subject_id = ? AND pe.semester_id = ?) AS has_marks
                                    $filter
                                    ORDER BY u.full_name
                                    LIMIT ? OFFSET ?");

@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $role = 'student';
 
                 // Step 1 — Insert into users table securely
-                $stmt_user = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password, role) VALUES (?, ?, ?, ?)");
+                $stmt_user = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password_hash, role) VALUES (?, ?, ?, ?)");
                 mysqli_stmt_bind_param($stmt_user, "ssss", $full_name, $email, $hashed, $role);
 
                 if (!mysqli_stmt_execute($stmt_user)) {
@@ -74,11 +74,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $user_id = mysqli_insert_id($conn);
 
                 // Step 2 — Insert into students table securely
-                // Academic level is never taken from user input — it is derived
-                // server-side from the Student ID prefix (see academic_level.php).
-                $academic_level = detect_academic_level($student_id);
-                $stmt_student = mysqli_prepare($conn, "INSERT INTO students (user_id, student_id, course, academic_level, year_of_study) VALUES (?, ?, ?, ?, ?)");
-                mysqli_stmt_bind_param($stmt_student, "isssi", $user_id, $student_id, $course, $academic_level, $year);
+                // The programme was checked against the level implied by the
+                // Student ID (academic_level.php); the level lives on the course.
+                $course_id    = course_id_for($conn, $course);
+                $stmt_student = mysqli_prepare($conn, "INSERT INTO students (user_id, student_id, course_id, year_of_study) VALUES (?, ?, ?, ?)");
+                mysqli_stmt_bind_param($stmt_student, "isii", $user_id, $student_id, $course_id, $year);
 
                 if (!mysqli_stmt_execute($stmt_student)) {
                     throw new Exception("Failed to create student profile.");

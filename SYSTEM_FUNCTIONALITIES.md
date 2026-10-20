@@ -25,14 +25,15 @@ Total Score = Assignment × 20% + Midterm × 30% + Final Exam × 40% + Attendanc
 
 ## 2. Database Entities
 
-There are 16 tables and 2 views:
+There are 17 tables and 2 views:
 - `users`
-- `students`
+- `students` (references a course)
+- `courses` — programmes offered, each with its academic level
 - `semesters`
 - `subjects`
-- `lecturer_subjects`
+- `lecturer_subjects` — one lecturer per subject per semester
 - `student_enrollments`
-- `performance`
+- `performance` — the marks of one enrolment (keyed by enrollment_id)
 - `audit_logs`
 - `mentorship_sessions`
 - `password_resets`
@@ -155,7 +156,7 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
   - A lecturer is optional.
   - An existing code is rejected with a clear message: use Edit, or Restore if it is archived.
 - **Credit hours** (1–6, steps of 0.5) on Add and Edit; the transcript's GPA uses them.
-- **Edit** (modal): rename the subject, change its credit hours, and change or remove its lecturer (one lecturer per subject).
+- **Edit** (modal): rename the subject, change its credit hours, and change or remove its lecturer for the active semester (one lecturer per subject per semester). Activating a new semester carries the previous semester's lecturers over if it has none yet.
 - **Outcomes** ([subject_outcomes.php](admin/subject_outcomes.php)): word CLO1–CLO4, tag each with a Bloom's level and a PLO, and choose which CLO each mark component assesses. Shows this semester's attainment per CLO. New subjects start with default outcomes.
 - **Programme outcomes** (same page, shared by every subject): edit each PLO's title, description, target score and class KPI.
 

@@ -18,8 +18,9 @@ $active_semester = h(get_active_semester_name($conn));
 $id = (int)($_GET['id'] ?? 0);
 
 // ── SECURE QUERY: Fetch Student Profile ────────────────────────────────
-$stmt_student = mysqli_prepare($conn, "SELECT s.*, u.full_name, u.email
+$stmt_student = mysqli_prepare($conn, "SELECT s.*, c.course_name AS course, c.academic_level, u.full_name, u.email
                                        FROM students s
+                                       JOIN courses c ON c.id = s.course_id
                                        JOIN users u ON s.user_id = u.id
                                        WHERE s.id = ?");
 mysqli_stmt_bind_param($stmt_student, "i", $id);
@@ -40,7 +41,7 @@ $stmt_perf = mysqli_prepare($conn, "SELECT sem.semester_name, sub.subject_name, 
                                     FROM student_enrollments e
                                     JOIN semesters sem ON sem.id = e.semester_id
                                     JOIN subjects sub ON e.subject_id = sub.id
-                                    LEFT JOIN performance p ON p.student_id = e.student_id AND p.subject_id = e.subject_id AND p.semester_id = e.semester_id
+                                    LEFT JOIN performance p ON p.enrollment_id = e.id
                                     LEFT JOIN predictions pr ON pr.student_id = e.student_id AND pr.subject_id = e.subject_id AND pr.semester_id = e.semester_id
                                     WHERE e.student_id = ?
                                     ORDER BY sem.start_date DESC, sub.subject_code");

@@ -172,7 +172,7 @@ If the lecturer's account is deleted, their Pending/Approved sessions become Dec
 | id | INT AUTO_INCREMENT | **PK** |
 | full_name | VARCHAR(100) | |
 | email | VARCHAR(100) | UNIQUE |
-| password | VARCHAR(255) (bcrypt hash) | |
+| password_hash | VARCHAR(255) (bcrypt hash — the password itself is never stored) | |
 | role | ENUM('admin','student','lecturer'), NOT NULL (can't change while subjects or a student profile depend on it — trigger) | |
 | must_change_password | TINYINT(1) | |
 | onboarding_done | TINYINT(1) (first-login guide shown) | |
@@ -184,10 +184,18 @@ If the lecturer's account is deleted, their Pending/Approved sessions become Dec
 | id | INT AUTO_INCREMENT | **PK** |
 | user_id | INT | **FK → USERS.id**, UNIQUE, ON DELETE CASCADE |
 | student_id | VARCHAR(20), e.g. `n00021960` | UNIQUE |
-| course | VARCHAR(100) | |
-| academic_level | ENUM('Diploma','Degree','Masters','PhD') | |
+| course_id | INT | **FK → COURSES.id**, RESTRICT |
 | year_of_study | INT, CHECK 1–3 | |
-| is_mentor | TINYINT(1), NOT NULL (peer mentor flag) | |
+| is_mentor | TINYINT(1), NOT NULL — the admin approved this student to act as a peer mentor. Who mentors whom is recorded per session in MENTORSHIP_SESSIONS (mentee_id → STUDENTS, mentor_id → USERS). | |
+
+**2a. COURSES** — programmes offered; each belongs to one academic level
+| Attribute | Type | Key |
+|---|---|---|
+| id | INT AUTO_INCREMENT | **PK** |
+| course_name | VARCHAR(100), e.g. "Diploma in Information Technology" | UNIQUE |
+| academic_level | ENUM('Diploma','Degree','Masters','PhD') | |
+
+The Student ID prefix implies a level (n0002 Diploma, n0003 Degree, n0004 Masters); the app only lets a student take a course of that level.
 
 **3. SEMESTERS**
 | Attribute | Type | Key |
@@ -209,12 +217,14 @@ If the lecturer's account is deleted, their Pending/Approved sessions become Dec
 | credit_hours | DECIMAL(3,1), NOT NULL, default 3.0, CHECK 1.0–6.0 (weights the subject in GPA) | |
 | is_archived | TINYINT(1), NOT NULL | |
 
-**5. LECTURER_SUBJECTS** — which lecturer teaches which subject
+**5. LECTURER_SUBJECTS** — which lecturer teaches which subject in which semester
 | Attribute | Type | Key |
 |---|---|---|
-| id | INT AUTO_INCREMENT | **PK** |
+| subject_id | INT | **PK** (subject_id, semester_id); **FK → SUBJECTS.id**, CASCADE |
+| semester_id | INT | **FK → SEMESTERS.id**, CASCADE |
 | user_id | INT | **FK → USERS.id**, CASCADE; must be a lecturer (enforced by trigger) |
-| subject_id | INT | **FK → SUBJECTS.id**, UNIQUE (one lecturer per subject), CASCADE |
+
+One lecturer per subject per semester. A lecturer is a USERS row with role = 'lecturer'; their name is USERS.full_name, never copied here. Activating a new semester carries over the previous semester's assignments if it has none.
 
 **6. STUDENT_ENROLLMENTS** — which student takes which subject in which semester
 | Attribute | Type | Key |
@@ -227,26 +237,22 @@ If the lecturer's account is deleted, their Pending/Approved sessions become Dec
 
 UNIQUE (student_id, subject_id, semester_id). INDEX (subject_id, semester_id) for class rosters.
 
-**7. PERFORMANCE** — raw marks
+**7. PERFORMANCE** — raw marks for one enrolment
 | Attribute | Type | Key |
 |---|---|---|
-| id | INT AUTO_INCREMENT | **PK** |
-| student_id | INT | part of the enrolment FK below |
-| subject_id | INT | part of the enrolment FK below (indexed) |
-| semester_id | INT | part of the enrolment FK below (indexed) |
+| enrollment_id | INT | **PK**; **FK → STUDENT_ENROLLMENTS.id**, CASCADE |
 | assignment | DECIMAL(5,2), NULL = not assessed; CHECK 0–100 (all four marks) | |
 | midterm | DECIMAL(5,2), NULL allowed | |
 | final_exam | DECIMAL(5,2), NULL allowed | |
 | attendance | DECIMAL(5,2), NULL allowed | |
 | created_at | TIMESTAMP | |
 
-UNIQUE (student_id, subject_id, semester_id).
-**FK (student_id, subject_id, semester_id) → STUDENT_ENROLLMENTS**, CASCADE: marks can only exist for an enrolment. This is the table's only foreign key: deleting a student or subject removes the enrolment and its marks with it, and a semester with enrolments can't be deleted.
+The student, subject and semester come from the enrolment, so they aren't repeated here. Marks can only exist for an enrolment (at most one row each); deleting a student or subject removes the enrolment and its marks with it, and a semester with enrolments can't be deleted. Marks are a separate table because an enrolment exists before any mark is entered, and marks arrive one component at a time.
 
 **8. PREDICTIONS** — a **VIEW**, not a table: the result calculated from PERFORMANCE when it is read
 | Column | Calculated as |
 |---|---|
-| student_id, subject_id, semester_id | from PERFORMANCE (its key) |
+| student_id, subject_id, semester_id | from the enrolment (PERFORMANCE.enrollment_id → STUDENT_ENROLLMENTS) |
 | total_score | ROUND(Assignment×0.20 + Midterm×0.30 + Final Exam×0.40 + Attendance×0.10, 2) |
 | predicted_status | ≥ 80 'Excellent' · ≥ 60 'Pass' · ≥ 50 'At Risk' · else 'Fail' (from the rounded total) |
 
@@ -354,7 +360,8 @@ A row appears only when all four marks are entered. Nothing is stored, so a resu
 **18. EARLY_RISK_PREDICTIONS** — a **VIEW** over PERFORMANCE for rows with at least one mark
 | Column | Calculated as |
 |---|---|
-| student_id, subject_id, semester_id, the four marks | from PERFORMANCE |
+| student_id, subject_id, semester_id | from the enrolment |
+| the four marks | from PERFORMANCE |
 | assessed_weight | sum of the weights of the components entered (0.10–1.00) |
 | current_score | weighted average of the components entered, rescaled to 0–100 (equals total_score once all four are in) |
 | current_status | the usual bands applied to current_score |
@@ -370,11 +377,11 @@ A row appears only when all four marks are entered. Nothing is stored, so a resu
 | # | Relationship | Cardinality | Via (FK) | Explanation |
 |---|---|---|---|---|
 | R1 | USERS **has** STUDENTS | 1 : 0..1 | students.user_id (UNIQUE) | Student accounts have one profile; admins and lecturers have none |
-| R2 | USERS (lecturer) **teaches** SUBJECTS | 1 : N, via LECTURER_SUBJECTS | lecturer_subjects.user_id, .subject_id (UNIQUE) | A lecturer teaches many subjects; each subject has at most one lecturer |
+| R2 | USERS (lecturer) **teaches** SUBJECTS **in** SEMESTERS | 1 : N, via LECTURER_SUBJECTS | user_id; PK (subject_id, semester_id) | A lecturer teaches many subjects; each subject has at most one lecturer per semester |
 | R3 | STUDENTS **enrols in** SUBJECTS **during** SEMESTERS | M : N : N, via STUDENT_ENROLLMENTS | student_id, subject_id, semester_id | A ternary relationship |
-| R4 | STUDENTS / SUBJECTS / SEMESTERS **have** PERFORMANCE | each 1 : N, through the enrolment | (see R6) | One marks row per student, subject and semester |
+| R4 | COURSES **is taken by** STUDENTS | 1 : N | students.course_id (RESTRICT) | A course's level applies to every student on it |
 | R5 | PERFORMANCE **produces** PREDICTIONS (view) | 1 : 0..1 | calculated, not a foreign key | A result exists once all 4 marks are present |
-| R6 | STUDENT_ENROLLMENTS **has** PERFORMANCE | 1 : 0..1 | composite FK (student_id, subject_id, semester_id) | Marks can only exist for an enrolment |
+| R6 | STUDENT_ENROLLMENTS **has** PERFORMANCE | 1 : 0..1 | performance.enrollment_id (PK and FK) | Marks can only exist for an enrolment |
 | R7 | USERS (lecturer) **writes** AUDIT_LOGS | 1 : N | audit_logs.user_id (SET NULL) | |
 | R8 | STUDENTS (mentee) **requests** MENTORSHIP_SESSIONS | 1 : N | mentee_id | |
 | R9 | USERS (mentor) **handles** MENTORSHIP_SESSIONS | 1 : N | mentor_id (SET NULL) | The mentor is a lecturer or a peer-mentor student's user account |
@@ -392,32 +399,19 @@ A row appears only when all four marks are entered. Nothing is stored, so a resu
 ### B3. Simplified ERD sketch
 
 ```
-                      ┌──────────────┐        1      N ┌─────────────────┐
-                      │    USERS     │─────────────────►│ PASSWORD_RESETS │
-                      │ PK id        │                  └─────────────────┘
-                      └─┬───┬────┬───┘
-            1 (student) │   │    │ 1 (lecturer)            1      N ┌────────────┐
-                        │   │    └─────────────────────────────────►│ AUDIT_LOGS │
-                 0..1   │   │ 1 (lecturer)                          └────────────┘
-               ┌────────▼─┐ │ N   ┌───────────────────┐  N    1 ┌──────────┐
-               │ STUDENTS │ └────►│ LECTURER_SUBJECTS │◄────────│ SUBJECTS │
-               │ PK id    │       └───────────────────┘         │ PK id    │
-               └┬──┬──┬──┬┘                                     └┬──┬──┬──┬┘
-                │  │  │  │ 1                                    1│  │  │  │
-                │  │  │  └──────► STUDENT_ENROLLMENTS ◄──────────┘  │  │  │
-                │  │  │ 1                  ▲ N                      │  │  │
-                │  │  └─────────► PERFORMANCE ◄──────────────────────┘  │  │
-                │  │ 1                 ▲ N                              │  │
-                │  └────────────► PREDICTIONS ◄──────────────────────────┘  │
-                │ 1                    ▲ N                                  │
-                └─────────► MENTORSHIP_SESSIONS ◄───────────────────────────┘
-                                   ▲ N (mentor_id → USERS)
-                ┌───────────┐
-                │ SEMESTERS │ 1 ──► N STUDENT_ENROLLMENTS ──► PERFORMANCE
-                └───────────┘
+  COURSES 1 ──► N STUDENTS N ◄── 1 USERS 1 ──► N PASSWORD_RESETS, AUDIT_LOGS
+                    │ 1                 │ 1 (lecturer)
+                    ▼ N                 ▼ N
+  SUBJECTS 1 ──► N STUDENT_ENROLLMENTS  LECTURER_SUBJECTS N ◄── 1 SUBJECTS
+  SEMESTERS 1 ──► N    │ 1                     N ◄── 1 SEMESTERS
+                       ▼ 0..1
+                  PERFORMANCE ──► PREDICTIONS, EARLY_RISK_PREDICTIONS (views)
+
+  STUDENTS (mentee) 1 ──► N MENTORSHIP_SESSIONS N ◄── 1 USERS (mentor)
+  SUBJECTS 1 ──► N SUBJECT_CLOS N ◄── 1 PLOS;  SUBJECT_CLOS 1 ──► N CLO_ASSESSMENTS, CQI_ACTIONS
 ```
 
-> PREDICTIONS is a **view** calculated from PERFORMANCE (it stores nothing). The sketch shows where results come from; B4 has the exact relationships.
+> The views are calculated from PERFORMANCE and the enrolment (they store nothing). B4 has the exact relationships.
 
 ### B4. Ready-to-render ERD (Mermaid)
 
@@ -427,7 +421,9 @@ Paste this into **https://mermaid.live** or draw.io (Arrange → Insert → Adva
 erDiagram
     USERS ||--o| STUDENTS : "has profile"
     USERS ||--o{ LECTURER_SUBJECTS : "teaches"
-    SUBJECTS ||--o| LECTURER_SUBJECTS : "taught by"
+    SUBJECTS ||--o{ LECTURER_SUBJECTS : "taught by"
+    SEMESTERS ||--o{ LECTURER_SUBJECTS : "in"
+    COURSES ||--o{ STUDENTS : "taken by"
     STUDENTS ||--o{ STUDENT_ENROLLMENTS : "enrols"
     SUBJECTS ||--o{ STUDENT_ENROLLMENTS : "has"
     SEMESTERS ||--o{ STUDENT_ENROLLMENTS : "during"
@@ -453,7 +449,7 @@ erDiagram
         int id PK
         varchar full_name
         varchar email UK
-        varchar password
+        varchar password_hash
         enum role
         tinyint must_change_password
         tinyint onboarding_done
@@ -462,9 +458,8 @@ erDiagram
     STUDENTS {
         int id PK
         int user_id FK
-        varchar student_id UK
-        varchar course
-        enum academic_level
+        varchar student_id UK "matric no."
+        int course_id FK
         int year_of_study
         tinyint is_mentor
     }
@@ -483,10 +478,15 @@ erDiagram
         decimal credit_hours
         tinyint is_archived
     }
-    LECTURER_SUBJECTS {
+    COURSES {
         int id PK
+        varchar course_name UK
+        enum academic_level
+    }
+    LECTURER_SUBJECTS {
+        int subject_id PK
+        int semester_id PK
         int user_id FK
-        int subject_id FK
     }
     STUDENT_ENROLLMENTS {
         int id PK
@@ -496,14 +496,12 @@ erDiagram
         timestamp enrolled_at
     }
     PERFORMANCE {
-        int id PK
-        int student_id FK
-        int subject_id FK
-        int semester_id FK
+        int enrollment_id PK
         decimal assignment
         decimal midterm
         decimal final_exam
         decimal attendance
+        timestamp created_at
     }
     PREDICTIONS {
         int student_id "VIEW over PERFORMANCE"
@@ -606,9 +604,9 @@ erDiagram
 - **USERS is a supertype.** Admin, Lecturer and Student are told apart by `role`. Only students get an extra table (STUDENTS). Show this as a disjoint specialisation (ISA), or as a 1 : 0..1 relationship.
 - **"student_id" means two things:**
   - `students.student_id` is the matric number (text).
-  - `student_id` in PERFORMANCE, PREDICTIONS and STUDENT_ENROLLMENTS, and `mentee_id`, all point to **`students.id`** (the numeric PK).
+  - `student_id` in STUDENT_ENROLLMENTS and the views, and `mentee_id`, all point to **`students.id`** (the numeric PK). PERFORMANCE reaches the student through its enrolment.
 - **SEMESTERS is central.** Enrolments, marks and results are all per semester. That is what gives the transcript its per-semester GPA and cumulative CGPA.
-- **Associative entities:** LECTURER_SUBJECTS, STUDENT_ENROLLMENTS, PERFORMANCE and PREDICTIONS resolve many-to-many relationships.
+- **Associative entities:** LECTURER_SUBJECTS (subject × semester → lecturer) and STUDENT_ENROLLMENTS (student × subject × semester) resolve many-to-many relationships. PERFORMANCE is a 1 : 0..1 extension of an enrolment.
 - **mentor_id points to USERS.** The mentor can be a lecturer or a peer-mentor student's user account.
 - **Delete rules worth showing:**
   - Deleting a user **cascades** to their student profile, enrolments, marks and sessions as mentee.
@@ -617,31 +615,36 @@ erDiagram
 
 ### B6. Normalization
 
-**From one flat result slip to the final tables**
+**From one student's academic record to the final tables** (the full write-up with underlined keys is the normalization report; this is the summary)
 
-- **UNF.** Student (matric no., name, email, course, level, year), semester (name, dates), and a *repeating group* of subject (code, name, lecturer) + four marks + total + status.
-- **1NF.** Remove the repeating group: one row per student, subject and semester, every value atomic. Key: (matric_no, subject_code, semester_name).
-- **2NF.** Remove partial dependencies on part of that key:
-  - matric_no → name, email, course, level, year → **USERS** + **STUDENTS**
-  - subject_code → subject name, lecturer → **SUBJECTS** + **LECTURER_SUBJECTS**
-  - semester_name → dates → **SEMESTERS**
-  - the whole key → enrolment and marks → **STUDENT_ENROLLMENTS** + **PERFORMANCE**
+- **0NF.** One record per student, with a *repeating group of semesters*, each holding a *repeating group of subjects*:
+  STUDENT ACADEMIC RECORD (StudentID, UserID, FullName, Email, PasswordHash, Role, MustChangePassword, OnboardingDone, UserCreatedAt, MatricNo, CourseID, CourseName, AcademicLevel, YearOfStudy, IsMentor, (SemesterID, SemesterName, StartDate, EndDate, IsActive, SemesterCreatedAt, (SubjectID, SubjectCode, SubjectName, CreditHours, IsArchived, LecturerID, LecturerName, EnrollmentID, EnrolledAt, Assignment, Midterm, FinalExam, Attendance, MarksCreatedAt, TotalScore, PredictedStatus)))
+- **1NF.** Remove the repeating groups: STUDENT (key StudentID) and STUDENT SEMESTER SUBJECT (key StudentID, SemesterID, SubjectID). EnrollmentID is an alternate key for that same combination.
+- **2NF.** Remove partial dependencies on that composite key:
+  - SemesterID → semester details → **SEMESTERS**
+  - SubjectID → subject details → **SUBJECTS**
+  - (SubjectID, SemesterID) → LecturerID, LecturerName → **LECTURER SUBJECTS**
+  - the whole key → EnrollmentID, EnrolledAt → **STUDENT ENROLLMENTS** (PK EnrollmentID)
+  - EnrollmentID → marks, TotalScore, PredictedStatus → **PERFORMANCE** (PK and FK EnrollmentID — it refers to the enrolment only, so the key isn't repeated)
 - **3NF.** Remove transitive dependencies:
-  - subject → lecturer → lecturer's name/email: the lecturer is a reference (user_id) into USERS, not copied text.
-  - Login details (email, password, role) belong to every kind of user, so they live in USERS; STUDENTS keeps only student-specific columns.
-  - marks → total → status: the total and status are **not stored**. PREDICTIONS is a view that calculates them from PERFORMANCE.
+  - StudentID → UserID → FullName, Email, PasswordHash, Role, … → **USERS**
+  - StudentID → CourseID → CourseName, AcademicLevel → **COURSES**
+  - (SubjectID, SemesterID) → LecturerID → LecturerName: a lecturer is a user with Role = 'Lecturer', so LecturerID becomes UserID* and LecturerName is USERS.FullName — not stored again.
+  - marks → TotalScore → PredictedStatus: both are **calculated at runtime** by the PREDICTIONS view and never stored, so they can't disagree with the marks.
+- `semesters.is_active` is the only "active" attribute. The database also has a generated helper column (`active_flag`) so a UNIQUE index can allow at most one active semester; it holds no data of its own and is not part of the logical design.
 
 **Result:** every table is in **3NF**, and all except the six marked 3NF below are also in **BCNF**.
 
 | Table | Candidate keys | Normal form |
 |---|---|---|
 | users | id, email | BCNF |
-| students | id, user_id, student_id | BCNF (academic_level depends on student_id, a candidate key) |
+| students | id, user_id, student_id | BCNF |
+| courses | id, course_name | BCNF |
 | subjects | id, subject_code | BCNF |
 | semesters | id | 3NF (see generated columns below) |
-| lecturer_subjects | id, subject_id | BCNF |
+| lecturer_subjects | (subject_id, semester_id) | BCNF |
 | student_enrollments | id, (student, subject, semester) | BCNF |
-| performance | id, (student, subject, semester) | BCNF |
+| performance | enrollment_id | BCNF |
 | mentorship_sessions | session_id | 3NF |
 | password_resets | id | 3NF |
 | account_requests | id | 3NF (see generated columns below) |

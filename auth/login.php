@@ -53,13 +53,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = "Too many failed attempts. Please wait " . LOGIN_WINDOW_MINUTES . " minutes and try again.";
     } else {
         // BR-42: Using Prepared Statements to prevent SQL Injection
-        $stmt = mysqli_prepare($conn, "SELECT id, full_name, password, role, must_change_password FROM users WHERE email = ?");
+        $stmt = mysqli_prepare($conn, "SELECT id, full_name, password_hash, role, must_change_password FROM users WHERE email = ?");
         mysqli_stmt_bind_param($stmt, "s", $email);
         mysqli_stmt_execute($stmt);
         $result = mysqli_stmt_get_result($stmt);
 
         if ($row = mysqli_fetch_assoc($result)) {
-            $password_ok = password_verify($password, $row['password']);
+            $password_ok = password_verify($password, $row['password_hash']);
             if ($password_ok && !in_array($row['role'], $portal_roles, true)) {
                 // Correct password, wrong door: don't sign in here.
                 $wrong_portal = true;
@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 // for an authenticated session.
                 session_regenerate_id(true);
                 unset($_SESSION['csrf_token']);   // fresh token for the signed-in session
-                $_SESSION['pw_fp'] = hash('sha256', $row['password']);
+                $_SESSION['pw_fp'] = hash('sha256', $row['password_hash']);
                 $_SESSION['user_id'] = $row['id'];
                 $_SESSION['full_name'] = $row['full_name'];
                 $_SESSION['role'] = $row['role'];

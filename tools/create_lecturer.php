@@ -27,7 +27,7 @@ $temp      = generate_temp_password(12);
 $password  = password_hash($temp, PASSWORD_DEFAULT);
 $role      = "lecturer";
 
-$stmt_ins = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password, role, must_change_password) VALUES (?, ?, ?, ?, 1)");
+$stmt_ins = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password_hash, role, must_change_password) VALUES (?, ?, ?, ?, 1)");
 mysqli_stmt_bind_param($stmt_ins, "ssss", $full_name, $email, $password, $role);
 
 if (mysqli_stmt_execute($stmt_ins)) {

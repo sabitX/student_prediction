@@ -148,7 +148,7 @@ function ew_analyse(array $row, $prior, array $cohort) {
 // subjects ($by = 'lecturer', $id = users.id). Archived subjects are left out.
 function early_warnings($conn, $semester_id, $by, $id) {
     $scope = $by === 'lecturer'
-        ? "JOIN lecturer_subjects ls ON ls.subject_id = r.subject_id AND ls.user_id = ?"
+        ? "JOIN lecturer_subjects ls ON ls.subject_id = r.subject_id AND ls.semester_id = r.semester_id AND ls.user_id = ?"
         : "AND r.student_id = ?";
     $sql = "SELECT r.*, sub.subject_code, sub.subject_name, s.student_id AS student_code, u.full_name
             FROM early_risk_predictions r
@@ -195,9 +195,10 @@ const BACKTEST_CHECKPOINTS = [
 
 function ew_backtest($conn) {
     $rows = mysqli_fetch_all(mysqli_query($conn,
-        "SELECT p.student_id, p.subject_id, p.semester_id, p.assignment, p.midterm, p.final_exam, p.attendance, pr.total_score
+        "SELECT e.student_id, e.subject_id, e.semester_id, p.assignment, p.midterm, p.final_exam, p.attendance, pr.total_score
          FROM performance p
-         JOIN predictions pr ON pr.student_id = p.student_id AND pr.subject_id = p.subject_id AND pr.semester_id = p.semester_id"),
+         JOIN student_enrollments e ON e.id = p.enrollment_id
+         JOIN predictions pr ON pr.student_id = e.student_id AND pr.subject_id = e.subject_id AND pr.semester_id = e.semester_id"),
         MYSQLI_ASSOC);
 
     $prior = [];   // [semester_id => [student_id => avg]]

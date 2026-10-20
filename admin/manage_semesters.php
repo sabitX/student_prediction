@@ -55,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isset($_POST['activate_id'])) {
         $id = (int)$_POST['activate_id'];
         mysqli_begin_transaction($conn);
+        $prev_id = get_active_semester_id($conn);
         mysqli_query($conn, "UPDATE semesters SET is_active = 0");
         $stmt = mysqli_prepare($conn, "UPDATE semesters SET is_active = 1 WHERE id = ?");
         mysqli_stmt_bind_param($stmt, "i", $id);
@@ -63,9 +64,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         mysqli_stmt_close($stmt);
         if ($found) {
             $sem_name = mysqli_fetch_assoc(mysqli_query($conn, "SELECT semester_name FROM semesters WHERE id = " . (int)$id))['semester_name'] ?? "id $id";
-            audit_log($conn, 'Active semester changed', "Semester: $sem_name");
+            // Lecturers are assigned per semester. A semester with no
+            // assignments yet starts with the previous semester's, so
+            // lecturers keep their subjects until an admin changes them.
+            $copied = 0;
+            $has_any = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM lecturer_subjects WHERE semester_id = " . (int)$id))[0] > 0;
+            if (!$has_any && $prev_id > 0 && $prev_id !== $id) {
+                $stmt = mysqli_prepare($conn, "INSERT INTO lecturer_subjects (user_id, subject_id, semester_id)
+                                               SELECT user_id, subject_id, ? FROM lecturer_subjects WHERE semester_id = ?");
+                mysqli_stmt_bind_param($stmt, "ii", $id, $prev_id);
+                mysqli_stmt_execute($stmt);
+                $copied = mysqli_stmt_affected_rows($stmt);
+                mysqli_stmt_close($stmt);
+            }
+            audit_log($conn, 'Active semester changed', "Semester: $sem_name" . ($copied ? " | Lecturer assignments carried over: $copied" : ''));
             mysqli_commit($conn);
-            $success = "Active semester changed. Marks, enrolments and dashboards now use it; earlier semesters stay on students' transcripts.";
+            $success = "Active semester changed. Marks, enrolments and dashboards now use it; earlier semesters stay on students' transcripts."
+                     . ($copied ? " $copied lecturer assignment" . ($copied == 1 ? '' : 's') . " carried over from the previous semester — change them under Subjects." : '');
         } else {
             mysqli_rollback($conn);
             $error = "Semester not found.";
@@ -75,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isset($_POST['delete_id'])) {
         $id = (int)$_POST['delete_id'];
         $stmt = mysqli_prepare($conn, "SELECT is_active,
-                    (SELECT COUNT(*) FROM performance WHERE semester_id = s.id) +
+                    (SELECT COUNT(*) FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id WHERE e.semester_id = s.id) +
                     (SELECT COUNT(*) FROM student_enrollments WHERE semester_id = s.id) AS used
                 FROM semesters s WHERE id = ?");
         mysqli_stmt_bind_param($stmt, "i", $id);
@@ -105,7 +120,7 @@ redirect_after_success($success, $error);
 
 $semesters = mysqli_query($conn, "SELECT s.*,
         (SELECT COUNT(*) FROM student_enrollments e WHERE e.semester_id = s.id) AS enrolments,
-        (SELECT COUNT(*) FROM performance p WHERE p.semester_id = s.id) AS mark_rows
+        (SELECT COUNT(*) FROM performance p JOIN student_enrollments pe ON pe.id = p.enrollment_id WHERE pe.semester_id = s.id) AS mark_rows
     FROM semesters s ORDER BY s.start_date DESC");
 
 $page_title = 'Semesters';

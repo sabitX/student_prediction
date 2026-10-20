@@ -21,9 +21,15 @@ require_once '../includes/flash.php';
 $flash   = flash_take();
 $success = $flash['success'] ?? "";
 
-// Assigns (or, with 0, removes) the one lecturer for a subject.
+// Assigns (or, with 0, removes) the one lecturer for a subject in the
+// active semester — a lecturer teaches a subject in a given semester
+// (lecturer_subjects.semester_id, migration 010).
 // Returns an error message, or '' on success.
 function set_subject_lecturer($conn, $subject_id, $lecturer_id) {
+    $semester_id = get_active_semester_id($conn);
+    if ($semester_id === 0) {
+        return $lecturer_id > 0 ? "Set an active semester (Semesters) before assigning lecturers." : '';
+    }
     if ($lecturer_id > 0) {
         $stmt = mysqli_prepare($conn, "SELECT id FROM users WHERE id = ? AND role = 'lecturer'");
         mysqli_stmt_bind_param($stmt, "i", $lecturer_id);
@@ -34,13 +40,13 @@ function set_subject_lecturer($conn, $subject_id, $lecturer_id) {
             return "Invalid lecturer selected.";
         }
     }
-    $stmt = mysqli_prepare($conn, "DELETE FROM lecturer_subjects WHERE subject_id = ?");
-    mysqli_stmt_bind_param($stmt, "i", $subject_id);
+    $stmt = mysqli_prepare($conn, "DELETE FROM lecturer_subjects WHERE subject_id = ? AND semester_id = ?");
+    mysqli_stmt_bind_param($stmt, "ii", $subject_id, $semester_id);
     mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
     if ($lecturer_id > 0) {
-        $stmt = mysqli_prepare($conn, "INSERT INTO lecturer_subjects (user_id, subject_id) VALUES (?, ?)");
-        mysqli_stmt_bind_param($stmt, "ii", $lecturer_id, $subject_id);
+        $stmt = mysqli_prepare($conn, "INSERT INTO lecturer_subjects (user_id, subject_id, semester_id) VALUES (?, ?, ?)");
+        mysqli_stmt_bind_param($stmt, "iii", $lecturer_id, $subject_id, $semester_id);
         mysqli_stmt_execute($stmt);
         mysqli_stmt_close($stmt);
     }
@@ -182,7 +188,7 @@ if (isset($_GET['restored'])) $success = "Subject restored.";
 // ── SECURE SELECT: active subjects, then archived ones ─────────────────
 $subjects_query = "SELECT s.*, u.id as lecturer_id, u.full_name as lecturer_name
                    FROM subjects s
-                   LEFT JOIN lecturer_subjects ls ON ls.subject_id = s.id
+                   LEFT JOIN lecturer_subjects ls ON ls.subject_id = s.id AND ls.semester_id = (SELECT id FROM semesters WHERE is_active = 1)
                    LEFT JOIN users u ON u.id = ls.user_id
                    WHERE s.is_archived = 0
                    ORDER BY s.subject_code";
@@ -295,7 +301,7 @@ require '../includes/page_start.php';
                         <small class="text-muted mt-1 d-block" style="font-size:0.75rem;">Used to weight this subject in GPA and CGPA.</small>
                     </div>
                     <div class="mb-4">
-                        <label class="form-label">Assign Lecturer</label>
+                        <label class="form-label">Lecturer this semester</label>
                         <select name="lecturer_id" class="form-select">
                             <option value="0">-- No lecturer assigned yet --</option>
                             <?php foreach ($lec_list as $lec): ?>
@@ -336,7 +342,7 @@ require '../includes/page_start.php';
                             <th>Code</th>
                             <th>Subject Name</th>
                             <th class="text-center">Credits</th>
-                            <th>Assigned Lecturer</th>
+                            <th>Lecturer (this semester)</th>
                             <th class="text-center pe-4">Action</th>
                         </tr>
                     </thead>

@@ -8,8 +8,9 @@ require '../includes/obe.php';
 $user_id = $_SESSION['user_id'];
 
 // ── SECURE QUERY: Fetch Student Profile ───────────────────────────────
-$stmt_student = mysqli_prepare($conn, "SELECT s.*, u.full_name, u.email
+$stmt_student = mysqli_prepare($conn, "SELECT s.*, c.course_name AS course, c.academic_level, u.full_name, u.email
                                        FROM students s
+                                       JOIN courses c ON c.id = s.course_id
                                        JOIN users u ON s.user_id = u.id
                                        WHERE s.user_id = ?");
 mysqli_stmt_bind_param($stmt_student, "i", $user_id);
@@ -32,8 +33,7 @@ $stmt_perf = mysqli_prepare($conn, "SELECT sem.id AS semester_id, sem.semester_n
                                      FROM student_enrollments e
                                      JOIN semesters sem ON sem.id = e.semester_id
                                      JOIN subjects sub ON sub.id = e.subject_id
-                                     LEFT JOIN performance p ON p.student_id = e.student_id
-                                          AND p.subject_id = e.subject_id AND p.semester_id = e.semester_id
+                                     LEFT JOIN performance p ON p.enrollment_id = e.id
                                      LEFT JOIN predictions pr ON pr.student_id = e.student_id
                                           AND pr.subject_id = e.subject_id AND pr.semester_id = e.semester_id
                                      WHERE e.student_id = ?

@@ -120,9 +120,8 @@ if (isset($_POST['add_student']) && csrf_verify()) {
     } elseif (($profile_error = student_profile_error($student_id, $course, $year)) !== '') {
         $error = $profile_error;
     } else {
-        // Academic level is never taken from an admin dropdown — it is
-        // derived server-side from the Student ID prefix (academic_level.php),
-        // so there is no way for it to conflict with the Student ID.
+        // The level comes from the Student ID prefix (academic_level.php) and
+        // the programme must belong to that level; it is stored on the course.
         $academic_level = detect_academic_level($student_id);
 
         $stmt_email = mysqli_prepare($conn, "SELECT id FROM users WHERE email = ?");
@@ -146,15 +145,16 @@ if (isset($_POST['add_student']) && csrf_verify()) {
                 $role   = 'student';
 
                 // Admin-set password is temporary: changed at first login.
-                $stmt_user = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password, role, must_change_password) VALUES (?, ?, ?, ?, 1)");
+                $stmt_user = mysqli_prepare($conn, "INSERT INTO users (full_name, email, password_hash, role, must_change_password) VALUES (?, ?, ?, ?, 1)");
                 mysqli_stmt_bind_param($stmt_user, "ssss", $reg_full_name, $reg_email, $hashed, $role);
                 if (!mysqli_stmt_execute($stmt_user)) {
                     throw new Exception("Failed to create user account.");
                 }
                 $new_user_id = mysqli_insert_id($conn);
 
-                $stmt_student = mysqli_prepare($conn, "INSERT INTO students (user_id, student_id, course, academic_level, year_of_study) VALUES (?, ?, ?, ?, ?)");
-                mysqli_stmt_bind_param($stmt_student, "isssi", $new_user_id, $student_id, $course, $academic_level, $year);
+                $course_id    = course_id_for($conn, $course);
+                $stmt_student = mysqli_prepare($conn, "INSERT INTO students (user_id, student_id, course_id, year_of_study) VALUES (?, ?, ?, ?)");
+                mysqli_stmt_bind_param($stmt_student, "isii", $new_user_id, $student_id, $course_id, $year);
                 if (!mysqli_stmt_execute($stmt_student)) {
                     throw new Exception("Failed to create student profile.");
                 }
@@ -202,8 +202,9 @@ if (isset($_POST['edit_student']) && csrf_verify()) {
     } elseif ($edit_year < 1 || $edit_year > 3) {
         $error = "Invalid year of study selected.";
     } else {
-        $stmt_edit = mysqli_prepare($conn, "UPDATE students SET course = ?, year_of_study = ? WHERE id = ?");
-        mysqli_stmt_bind_param($stmt_edit, "sii", $edit_course, $edit_year, $edit_id);
+        $edit_course_id = course_id_for($conn, $edit_course);
+        $stmt_edit = mysqli_prepare($conn, "UPDATE students SET course_id = ?, year_of_study = ? WHERE id = ?");
+        mysqli_stmt_bind_param($stmt_edit, "iii", $edit_course_id, $edit_year, $edit_id);
         if (mysqli_stmt_execute($stmt_edit)) {
             require_once '../includes/audit.php';
             audit_log($conn, 'Student profile edited', "Student ID: {$edit_row['student_id']} | Programme: $edit_course | Year: $edit_year");
@@ -223,7 +224,7 @@ redirect_after_success($success, $error, ['issued' => $issued]);
 require '../includes/pagination.php';
 $semester_id = get_active_semester_id($conn);
 $list   = list_params();
-$filter = "FROM students s JOIN users u ON s.user_id = u.id";
+$filter = "FROM students s JOIN users u ON s.user_id = u.id JOIN courses c ON c.id = s.course_id";
 $types  = '';
 $params = [];
 if ($list['q'] !== '') {
@@ -239,7 +240,7 @@ $students_total = (int)mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['n'];
 mysqli_stmt_close($stmt);
 $list = list_clamp($list, $students_total);
 
-$stmt = mysqli_prepare($conn, "SELECT s.*, u.full_name, u.email,
+$stmt = mysqli_prepare($conn, "SELECT s.*, c.course_name AS course, c.academic_level, u.full_name, u.email,
                                       (SELECT COUNT(*) FROM student_enrollments e WHERE e.student_id = s.id AND e.semester_id = ?) AS subjects_entered,
                                       (SELECT AVG(pr.total_score) FROM predictions pr WHERE pr.student_id = s.id AND pr.semester_id = ?) AS avg_score
                                $filter

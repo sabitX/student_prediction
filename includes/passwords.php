@@ -44,7 +44,7 @@ function generate_temp_password($length = 10) {
 // Sets a temporary password that the user must replace at next login.
 function set_temporary_password($conn, $user_id, $temp_password) {
     $hash = password_hash($temp_password, PASSWORD_DEFAULT);
-    $stmt = mysqli_prepare($conn, "UPDATE users SET password = ?, must_change_password = 1 WHERE id = ?");
+    $stmt = mysqli_prepare($conn, "UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?");
     mysqli_stmt_bind_param($stmt, "si", $hash, $user_id);
     mysqli_stmt_execute($stmt);
     $changed = mysqli_stmt_affected_rows($stmt) > 0;

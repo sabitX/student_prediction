@@ -105,14 +105,14 @@ function registration_open() {
 // reset it) — instead of staying usable until the idle timeout.
 // pw_fp is a fingerprint of the password hash, set at sign-in.
 if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
-    $stmt = mysqli_prepare($conn, "SELECT role, full_name, password FROM users WHERE id = ?");
+    $stmt = mysqli_prepare($conn, "SELECT role, full_name, password_hash FROM users WHERE id = ?");
     $acct_id = (int)$_SESSION['user_id'];
     mysqli_stmt_bind_param($stmt, "i", $acct_id);
     mysqli_stmt_execute($stmt);
     $acct = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
     mysqli_stmt_close($stmt);
 
-    $acct_fp = $acct ? hash('sha256', $acct['password']) : '';
+    $acct_fp = $acct ? hash('sha256', $acct['password_hash']) : '';
     $_SESSION['pw_fp'] ??= $acct_fp;   // sessions from before this check existed
 
     if (!$acct || $acct['role'] !== ($_SESSION['role'] ?? null) || !hash_equals($_SESSION['pw_fp'], $acct_fp)) {

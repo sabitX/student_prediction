@@ -12,8 +12,9 @@ $initials   = strtoupper(substr($first_name, 0, 1) . substr(explode(' ', trim($f
 $active_semester = h(get_active_semester_name($conn));
 
 // ── SECURE QUERY: Fetch Student Profile ───────────────────────────────
-$stmt_student = mysqli_prepare($conn, "SELECT s.*, u.full_name, u.email
+$stmt_student = mysqli_prepare($conn, "SELECT s.*, c.course_name AS course, c.academic_level, u.full_name, u.email
                                        FROM students s
+                                       JOIN courses c ON c.id = s.course_id
                                        JOIN users u ON s.user_id = u.id
                                        WHERE s.user_id = ?");
 mysqli_stmt_bind_param($stmt_student, "i", $user_id);

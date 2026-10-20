@@ -2,7 +2,7 @@
 -- Fresh install: create the database `student_prediction`
 -- (CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci), import this file as a
 -- user that can CREATE TRIGGER (e.g. root), then follow README
--- "First-time setup". Existing installs: run database/migrations/001–009
+-- "First-time setup". Existing installs: run database/migrations/001–010
 -- in order instead.
 --
 -- Generated from a database with all migrations applied, so a fresh
@@ -84,15 +84,25 @@ CREATE TABLE `cqi_actions` (
   CONSTRAINT `cqi_user_fk` FOREIGN KEY (`logged_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `lecturer_subjects` (
+CREATE TABLE `courses` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `course_name` varchar(100) NOT NULL,
+  `academic_level` enum('Diploma','Degree','Masters','PhD') NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_course_name` (`course_name`),
+  KEY `idx_course_level` (`academic_level`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `lecturer_subjects` (
   `user_id` int(11) NOT NULL,
   `subject_id` int(11) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_subject_lecturer` (`subject_id`),
+  `semester_id` int(11) NOT NULL,
+  PRIMARY KEY (`subject_id`,`semester_id`),
   KEY `user_id` (`user_id`),
+  KEY `idx_lecturer_semester` (`semester_id`),
   CONSTRAINT `lecturer_subjects_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `lecturer_subjects_ibfk_2` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE
+  CONSTRAINT `lecturer_subjects_ibfk_2` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `lecturer_subjects_semester_fk` FOREIGN KEY (`semester_id`) REFERENCES `semesters` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `login_attempts` (
@@ -142,20 +152,14 @@ CREATE TABLE `password_resets` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `performance` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `student_id` int(11) NOT NULL,
-  `subject_id` int(11) NOT NULL,
-  `semester_id` int(11) NOT NULL,
+  `enrollment_id` int(11) NOT NULL,
   `assignment` decimal(5,2) DEFAULT NULL,
   `midterm` decimal(5,2) DEFAULT NULL,
   `final_exam` decimal(5,2) DEFAULT NULL,
   `attendance` decimal(5,2) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_performance` (`student_id`,`subject_id`,`semester_id`),
-  KEY `subject_id` (`subject_id`),
-  KEY `performance_ibfk_3` (`semester_id`),
-  CONSTRAINT `performance_enrollment_fk` FOREIGN KEY (`student_id`, `subject_id`, `semester_id`) REFERENCES `student_enrollments` (`student_id`, `subject_id`, `semester_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  PRIMARY KEY (`enrollment_id`),
+  CONSTRAINT `performance_enrollment_fk` FOREIGN KEY (`enrollment_id`) REFERENCES `student_enrollments` (`id`) ON DELETE CASCADE,
   CONSTRAINT `chk_performance_marks` CHECK ((`assignment` is null or `assignment` between 0 and 100) and (`midterm` is null or `midterm` between 0 and 100) and (`final_exam` is null or `final_exam` between 0 and 100) and (`attendance` is null or `attendance` between 0 and 100))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -203,13 +207,14 @@ CREATE TABLE `students` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `student_id` varchar(20) NOT NULL,
-  `course` varchar(100) NOT NULL,
-  `academic_level` enum('Diploma','Degree','Masters','PhD') NOT NULL DEFAULT 'Diploma',
+  `course_id` int(11) NOT NULL,
   `year_of_study` int(11) NOT NULL,
   `is_mentor` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `student_id` (`student_id`),
   UNIQUE KEY `uniq_student_user` (`user_id`),
+  KEY `idx_student_course` (`course_id`),
+  CONSTRAINT `students_course_fk` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`),
   CONSTRAINT `students_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `chk_students_year` CHECK (`year_of_study` between 1 and 3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -244,7 +249,7 @@ CREATE TABLE `users` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `full_name` varchar(100) NOT NULL,
   `email` varchar(100) NOT NULL,
-  `password` varchar(255) NOT NULL,
+  `password_hash` varchar(255) NOT NULL,
   `role` enum('admin','student','lecturer') NOT NULL DEFAULT 'student',
   `must_change_password` tinyint(1) NOT NULL DEFAULT 0,
   `onboarding_done` tinyint(1) NOT NULL DEFAULT 0,
@@ -255,12 +260,12 @@ CREATE TABLE `users` (
 
 SET FOREIGN_KEY_CHECKS = 1;
 
--- ── Results: calculated from performance when read (see migration 006) ──
+-- ── Results: calculated from performance when read (migrations 006, 010) ──
 CREATE ALGORITHM = MERGE SQL SECURITY INVOKER VIEW predictions AS
 SELECT
-    p.student_id,
-    p.subject_id,
-    p.semester_id,
+    e.student_id,
+    e.subject_id,
+    e.semester_id,
     CAST(ROUND(p.assignment * 0.20 + p.midterm * 0.30 + p.final_exam * 0.40 + p.attendance * 0.10, 2) AS DECIMAL(5,2)) AS total_score,
     CASE
         WHEN ROUND(p.assignment * 0.20 + p.midterm * 0.30 + p.final_exam * 0.40 + p.attendance * 0.10, 2) >= 80 THEN 'Excellent'
@@ -269,10 +274,23 @@ SELECT
         ELSE 'Fail'
     END COLLATE utf8mb4_unicode_ci AS predicted_status
 FROM performance p
+JOIN student_enrollments e ON e.id = p.enrollment_id
 WHERE p.assignment IS NOT NULL
   AND p.midterm    IS NOT NULL
   AND p.final_exam IS NOT NULL
   AND p.attendance IS NOT NULL;
+
+-- ── Programmes offered, each with its academic level (migration 010).
+INSERT IGNORE INTO courses (course_name, academic_level) VALUES
+('Diploma in Information Technology',             'Diploma'),
+('Diploma in Computer Science',                   'Diploma'),
+('Bachelor of Information Technology (Hons)',     'Degree'),
+('Bachelor of Computer Science (Hons)',           'Degree'),
+('Bachelor of Software Engineering (Hons)',       'Degree'),
+('Master of Information Technology',              'Masters'),
+('Master of Computer Science',                    'Masters'),
+('Doctor of Philosophy (Computer Science)',       'PhD'),
+('Doctor of Philosophy (Information Technology)', 'PhD');
 
 -- ── Programme Learning Outcomes every install starts with (migration 009).
 -- Subjects get default CLOs when added (includes/obe.php).
@@ -285,9 +303,9 @@ INSERT IGNORE INTO plos (plo_code, plo_title, description, target_threshold, coh
 -- ── Results from the marks so far, before the final exam (migration 009) ──
 CREATE ALGORITHM = MERGE SQL SECURITY INVOKER VIEW early_risk_predictions AS
 SELECT
-    p.student_id,
-    p.subject_id,
-    p.semester_id,
+    e.student_id,
+    e.subject_id,
+    e.semester_id,
     p.assignment,
     p.midterm,
     p.final_exam,
@@ -319,6 +337,7 @@ SELECT
             NULL) AS DECIMAL(6,2)) AS min_final_to_pass,
     IF(p.attendance IS NOT NULL AND p.attendance < 80, 1, 0) AS attendance_below_bar
 FROM performance p
+JOIN student_enrollments e ON e.id = p.enrollment_id
 WHERE p.assignment IS NOT NULL
    OR p.midterm    IS NOT NULL
    OR p.final_exam IS NOT NULL

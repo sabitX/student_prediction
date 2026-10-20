@@ -56,7 +56,7 @@ $stmt_stats = mysqli_prepare($conn,
             SUM(pr.predicted_status = 'Fail')      AS fail
      FROM lecturer_subjects ls
      JOIN subjects sub ON sub.id = ls.subject_id AND sub.is_archived = 0
-     JOIN student_enrollments e ON e.subject_id = ls.subject_id AND e.semester_id = ?
+     JOIN student_enrollments e ON e.subject_id = ls.subject_id AND e.semester_id = ls.semester_id AND e.semester_id = ?
      LEFT JOIN predictions pr ON pr.student_id = e.student_id AND pr.subject_id = e.subject_id AND pr.semester_id = e.semester_id
      WHERE ls.user_id = ?");
 mysqli_stmt_bind_param($stmt_stats, "ii", $semester_id, $user_id);
@@ -110,7 +110,7 @@ usort($roster, fn($x, $y) => [$x['analysis']['level'] !== 'critical', $x['analys
 // ── CLO attainment per subject this semester, with CQI flags ───────────────
 $stmt_my_subs = mysqli_prepare($conn, "SELECT sub.id, sub.subject_code, sub.subject_name
                                        FROM lecturer_subjects ls JOIN subjects sub ON sub.id = ls.subject_id AND sub.is_archived = 0
-                                       WHERE ls.user_id = ? ORDER BY sub.subject_code");
+                                       WHERE ls.user_id = ? AND ls.semester_id = (SELECT id FROM semesters WHERE is_active = 1) ORDER BY sub.subject_code");
 mysqli_stmt_bind_param($stmt_my_subs, "i", $user_id);
 mysqli_stmt_execute($stmt_my_subs);
 $my_subjects = mysqli_fetch_all(mysqli_stmt_get_result($stmt_my_subs), MYSQLI_ASSOC);

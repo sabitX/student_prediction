@@ -64,28 +64,29 @@ function academic_level_label($level) {
     };
 }
 
-// Programme catalogue grouped by academic level, shared by every programme
-// dropdown so the list only has to be maintained in one place.
+// Programme catalogue grouped by academic level, read from the courses
+// table (each programme belongs to exactly one level; migration 010), and
+// shared by every programme dropdown.
 function programme_catalog() {
-    return [
-        'Diploma' => [
-            'Diploma in Information Technology',
-            'Diploma in Computer Science',
-        ],
-        'Degree' => [
-            'Bachelor of Information Technology (Hons)',
-            'Bachelor of Computer Science (Hons)',
-            'Bachelor of Software Engineering (Hons)',
-        ],
-        'Masters' => [
-            'Master of Information Technology',
-            'Master of Computer Science',
-        ],
-        'PhD' => [
-            'Doctor of Philosophy (Computer Science)',
-            'Doctor of Philosophy (Information Technology)',
-        ],
-    ];
+    static $catalog = null;
+    if ($catalog === null) {
+        $catalog = ['Diploma' => [], 'Degree' => [], 'Masters' => [], 'PhD' => []];
+        $res = mysqli_query($GLOBALS['conn'], "SELECT course_name, academic_level FROM courses ORDER BY academic_level, course_name");
+        while ($c = mysqli_fetch_assoc($res)) {
+            $catalog[$c['academic_level']][] = $c['course_name'];
+        }
+    }
+    return $catalog;
+}
+
+// courses.id for a programme name, or 0 if there is no such programme.
+function course_id_for($conn, $course_name) {
+    $stmt = mysqli_prepare($conn, "SELECT id FROM courses WHERE course_name = ?");
+    mysqli_stmt_bind_param($stmt, "s", $course_name);
+    mysqli_stmt_execute($stmt);
+    $row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    mysqli_stmt_close($stmt);
+    return $row ? (int)$row['id'] : 0;
 }
 
 // Renders <optgroup> blocks for every level, grouped and labeled, with the

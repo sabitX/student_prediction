@@ -5,7 +5,7 @@
 // lecturer/lecturer_dashboard.php (lecturers handle requests).
 //
 // Who can mentor a subject:
-//   • the lecturer assigned to it (lecturer_subjects), or
+//   • the lecturer assigned to it this semester (lecturer_subjects), or
 //   • a student the admin flagged as a peer mentor (students.is_mentor)
 //     who achieved "Excellent" in that subject.
 // The subject must not be archived.
@@ -19,7 +19,7 @@ function find_mentors($conn, $subject_id, $exclude_user_id) {
     $stmt = mysqli_prepare($conn,
         "SELECT u.id, u.full_name, u.email, 'Lecturer' AS mentor_type
          FROM users u
-         JOIN lecturer_subjects ls ON ls.user_id = u.id
+         JOIN lecturer_subjects ls ON ls.user_id = u.id AND ls.semester_id = (SELECT id FROM semesters WHERE is_active = 1)
          JOIN subjects sub ON sub.id = ls.subject_id AND sub.is_archived = 0
          WHERE u.role = 'lecturer' AND ls.subject_id = ?
          UNION
