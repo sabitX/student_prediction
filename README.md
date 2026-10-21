@@ -28,7 +28,7 @@ Going live on a real server? Follow **DEPLOYMENT.md** (HTTPS, php.ini, backups, 
 
 ### Upgrading an existing install
 
-Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql`, `007_predictions_view_collation.sql`, `008_student_account_requests.sql`, `009_obe_and_early_warning.sql` and `010_normalization_review.sql`, each once, in that order, as MySQL `root` (004–010 create triggers, views and constraints). After that, do steps 5–6 above.
+Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql`, `007_predictions_view_collation.sql`, `008_student_account_requests.sql`, `009_obe_and_early_warning.sql`, `010_normalization_review.sql` and `011_support_requests.sql`, each once, in that order, as MySQL `root` (004–010 create triggers, views and constraints). After that, do steps 5–6 above.
 
 ---
 
@@ -51,8 +51,8 @@ The `tools/` scripts disable themselves once an admin, lecturer or subject exist
 
 - Every user can change their password from **Change Password** in the sidebar.
 - Accounts created by an admin, and the default setup accounts, must set a new password at first login.
-- **Forgot password** sends a request to the administrator (**Password Requests**). The admin verifies the person and issues a one-time temporary password. The user then sets their own password at next login.
-- Sessions end after 30 minutes of inactivity. Login and reset requests are rate-limited.
+- **Forgot password?** on the sign-in pages opens **Contact Admin**, which sends a support request with a reference number to the administrator (**Support Requests**). The admin verifies the person and issues a one-time temporary password. The user then sets their own password at next login. Signed-in students and lecturers have **Contact Admin** in their menu for anything else.
+- Sessions end after 30 minutes of inactivity. Login and Contact Admin requests are rate-limited.
 
 ---
 
@@ -88,13 +88,14 @@ student_prediction/
 ├── includes/          shared logic (not web-accessible): session.php, session_check.php,
 │                      sidebar.php, page_start.php/page_end.php, csrf.php, semester.php,
 │                      academic_level.php, grading.php, marks.php, mentorship.php,
-│                      passwords.php, login_throttle.php, flash.php, no_student_profile.php
-├── auth/              login, logout, register, forgot_password, change_password
+│                      passwords.php, login_throttle.php, flash.php, no_student_profile.php,
+│                      support.php, support_page.php
+├── auth/              login, logout, register, contact_admin, change_password
 ├── admin/             admin_dashboard, manage_subjects, manage_enrollments, manage_students,
-│                      manage_lecturers (staff), manage_semesters, password_requests,
+│                      manage_lecturers (staff), manage_semesters, support_requests,
 │                      audit_logs, view_student
-├── lecturer/          lecturer_dashboard, enter_marks, csv_upload, audit_trail
-├── student/           student_dashboard, predict, mentorship, transcript
+├── lecturer/          lecturer_dashboard, enter_marks, csv_upload, audit_trail, contact_admin
+├── student/           student_dashboard, predict, mentorship, transcript, contact_admin
 ├── actions/           save_marks.php
 ├── tools/             one-time setup scripts (answer only from localhost)
 ├── index.php

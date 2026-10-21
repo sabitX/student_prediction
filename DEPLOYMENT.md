@@ -47,7 +47,7 @@ Use this list when moving SPTS from a development XAMPP install to a server that
   CREATE DATABASE student_prediction CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   ```
 
-- [ ] **Upgrading an existing install:** run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql`, `007_predictions_view_collation.sql`, `008_student_account_requests.sql`, `009_obe_and_early_warning.sql` and `010_normalization_review.sql`, each once, in that order, after a backup. Run them (and `schema.sql`) as MySQL `root`, not `spts_app`: they create tables and triggers. If binary logging is on, set `log_bin_trust_function_creators = 1` first, or the triggers are refused.
+- [ ] **Upgrading an existing install:** run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql`, `007_predictions_view_collation.sql`, `008_student_account_requests.sql`, `009_obe_and_early_warning.sql`, `010_normalization_review.sql` and `011_support_requests.sql`, each once, in that order, after a backup. Run them (and `schema.sql`) as MySQL `root`, not `spts_app`: they create tables and triggers. If binary logging is on, set `log_bin_trust_function_creators = 1` first, or the triggers are refused.
 - [ ] Create the **least-privilege application user**. Use a long random password, and never let the app connect as `root`:
 
   ```sql
@@ -83,10 +83,10 @@ Use this list when moving SPTS from a development XAMPP install to a server that
 
 - [ ] Check the Apache/PHP **error log** regularly. Lines starting `SPTS uncaught` are unexpected errors; each one shows the file and line.
 - [ ] Rotate logs so they don't fill the disk.
-- [ ] Old login attempts are deleted automatically after a day. Clear old, finished password-reset requests occasionally:
+- [ ] Old login attempts are deleted automatically after a day. Clear old, resolved support requests occasionally:
 
   ```sql
-  DELETE FROM password_resets WHERE expires_at < NOW() - INTERVAL 90 DAY;
+  DELETE FROM support_requests WHERE status = 'Resolved' AND resolved_at < NOW() - INTERVAL 180 DAY;
   ```
 
 - [ ] At the start of each semester: add the semester, *Set Active*, then set up enrolments.

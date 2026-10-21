@@ -92,7 +92,7 @@ The project followed an **iterative (prototyping/Agile-style) approach**:
   - A lecturer opening a student page is redirected to their own dashboard.
   - The 6th failed attempt within 15 minutes is blocked.
   - An idle session ends after 30 minutes with an explanatory message.
-  - Forgot Password gives an identical response for real and fake accounts; a request appears for the admin; the temporary password forces a password change before any page can be used.
+  - Contact Admin (Forgot password) gives an identical response, with a reference number, for real and fake accounts; the request appears under Support Requests; the admin can reset only after confirming identity; the temporary password forces a password change before any page can be used.
 - **Registration:** rejects an invalid email, a malformed Student ID, a programme from the wrong level, and a weak password. An uppercase Student ID is stored in lowercase and treated as a duplicate.
 - **Mark entry grid:**
   - Partial marks save with status Pending.

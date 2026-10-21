@@ -25,7 +25,7 @@
                   │                     │                           │
    semesters, subjects, staff,   enters marks (grid/CSV) for  views this semester's
    students, ENROLMENTS,         ENROLLED students in the     results, what-if, books
-   password requests, audit log  ACTIVE semester → score,     mentorship, prints
+   support requests, audit log   ACTIVE semester → score,     mentorship, prints
                   │              status, audit log            multi-semester transcript
                   └──────────────────► shared database ◄──────────────────┘
 ```
@@ -71,12 +71,12 @@ Logout: POST + CSRF token only
 4. INSERT `students`.
 5. COMMIT, or ROLLBACK if anything fails.
 
-**Forgot password** (admin-mediated; the page never changes a password itself):
-1. The user submits email + full name. The same reply is shown whether or not they match, and requests are rate-limited.
-2. If they match, a `password_resets` row is created (open for 7 days).
-3. The admin checks the person's identity and opens **Password Requests**.
-4. The admin clicks **Issue Temporary Password**. This updates `users.password` and sets `must_change_password = 1`. The request is marked `used = 1` with `resolved_by` and `resolved_at`.
-5. At next login the user must set their own password.
+**Contact Admin / forgot password** (admin-mediated; a request never changes an account itself):
+1. "Forgot password?" or "Contact the admin" on either sign-in page opens **Contact Admin**, with no sign-in needed. The user gives their role, name, Student/Staff ID, registered email, a category (Forgot password, Cannot log in, Other) and a message. Signed-in students and lecturers use **Contact Admin** in their menu instead; their details come from their account.
+2. A `support_requests` row is saved (status Open) and the user sees a reference number such as SR-7KQ2M9XD. The reply is the same whether or not the details match an account. The form has a CSRF token and a hidden honeypot field, and is rate-limited per email + network and per network. Admins are emailed if mail is set up, and see a badge on **Support Requests**.
+3. The admin opens the request. An **Account Check** compares the details with the records (email registered, role, name, Student ID); only admins see it.
+4. For an open Forgot password / Cannot log in request whose email and role match a student or lecturer account, the admin verifies the person (e.g. their ID card in person), records how, and clicks **Issue Temporary Password**. This updates `users.password_hash` and sets `must_change_password = 1`, then the request becomes Resolved with `handled_by` and `resolved_at`. The temporary password is shown to the admin once and logged in the audit log (without the password).
+5. Changing the password signs out the user's open sessions. At next sign-in they must set their own password.
 
 ### A4. Admin workflow
 
@@ -88,7 +88,7 @@ Logout: POST + CSRF token only
 | 4 | Enrolments: tick students per subject for the active semester | `student_enrollments` |
 | 5 | Students: add, edit programme/year, reset password, peer-mentor flag, delete | `users`, `students` |
 | 6 | Staff: add lecturer/admin, reset lecturer password, delete lecturer | `users` (+ upcoming `mentorship_sessions` → Declined) |
-| 7 | Password Requests: issue temporary password / reject | `password_resets`, `users` |
+| 7 | Support Requests: filter, set Open / In Progress / Resolved with a note, issue a temporary password after verifying identity | `support_requests`, `users`, `audit_logs` |
 | 8 | Audit Log: all mark changes, filter by lecturer/action/text | reads `audit_logs` |
 | 9 | View Student: profile + results for every semester | reads `students`, `student_enrollments`, `semesters`, `performance`, `predictions` |
 
@@ -281,18 +281,23 @@ A row appears only when all four marks are entered. Nothing is stored, so a resu
 | meeting_notes | MEDIUMTEXT | |
 | created_at | TIMESTAMP | |
 
-**11. PASSWORD_RESETS** — reset requests waiting for an admin
+**11. SUPPORT_REQUESTS** — Contact Admin requests (replaced PASSWORD_RESETS in migration 011)
 | Attribute | Type | Key |
 |---|---|---|
 | id | INT AUTO_INCREMENT | **PK** |
-| user_id | INT, NOT NULL | **FK → USERS.id**, CASCADE |
-| email | VARCHAR(100) (snapshot of the address used for the request) | |
-| token | VARCHAR(255) (random reference) | |
-| expires_at | DATETIME | INDEX (used, expires_at) |
-| used | TINYINT(1), NOT NULL (1 = resolved) | |
-| resolved_by | INT, NULL | **FK → USERS.id** (the admin), SET NULL |
-| resolved_at | DATETIME | |
+| reference_no | CHAR(11), e.g. SR-7KQ2M9XD (random, not a count) | UNIQUE |
+| role | ENUM('student','lecturer') | |
+| full_name, id_number, email | VARCHAR — as given by the requester (snapshot; may match no account) | INDEX (email) |
+| category | ENUM('forgot_password','cannot_login','other') | |
+| message | VARCHAR(1000), NULL | |
+| user_id | INT, NULL — set only when sent while signed in | **FK → USERS.id**, SET NULL |
+| status | ENUM('Open','In Progress','Resolved') | INDEX (status, created_at) |
+| admin_note | VARCHAR(500), NULL (shown to a signed-in requester) | |
+| handled_by | INT, NULL | **FK → USERS.id** (the admin), SET NULL |
 | created_at | TIMESTAMP | |
+| updated_at, resolved_at | DATETIME, NULL | |
+
+A request from the sign-in page has no `user_id`: who sent it is not known until an admin verifies them, so it is not linked to an account.
 
 **12. LOGIN_ATTEMPTS** — standalone security table (no FK)
 | Attribute | Type | Key |
@@ -386,8 +391,8 @@ A row appears only when all four marks are entered. Nothing is stored, so a resu
 | R8 | STUDENTS (mentee) **requests** MENTORSHIP_SESSIONS | 1 : N | mentee_id | |
 | R9 | USERS (mentor) **handles** MENTORSHIP_SESSIONS | 1 : N | mentor_id (SET NULL) | The mentor is a lecturer or a peer-mentor student's user account |
 | R10 | SUBJECTS **is topic of** MENTORSHIP_SESSIONS | 1 : N | subject_id | |
-| R11 | USERS **requests** PASSWORD_RESETS | 1 : N | password_resets.user_id | |
-| R12 | USERS (admin) **resolves** PASSWORD_RESETS and ACCOUNT_REQUESTS | 1 : N | resolved_by (SET NULL) | |
+| R11 | USERS **sends** SUPPORT_REQUESTS (while signed in) | 0..1 : N | support_requests.user_id (SET NULL) | Requests from the sign-in page have no user |
+| R12 | USERS (admin) **handles** SUPPORT_REQUESTS and **resolves** ACCOUNT_REQUESTS | 1 : N | support_requests.handled_by, account_requests.resolved_by (SET NULL) | |
 | R13 | ACCOUNT_REQUESTS **creates** USERS (lecturer) | 0..1 : 0..1 | account_requests.user_id (SET NULL) | Set when the admin approves the request |
 | R14 | SUBJECTS **defines** SUBJECT_CLOS | 1 : 0..4 | subject_clos.subject_id | Each subject has CLO1–CLO4 |
 | R15 | PLOS **is served by** SUBJECT_CLOS | 1 : N | subject_clos.plo_id (RESTRICT) | Each CLO contributes to one PLO |
@@ -399,7 +404,7 @@ A row appears only when all four marks are entered. Nothing is stored, so a resu
 ### B3. Simplified ERD sketch
 
 ```
-  COURSES 1 ──► N STUDENTS N ◄── 1 USERS 1 ──► N PASSWORD_RESETS, AUDIT_LOGS
+  COURSES 1 ──► N STUDENTS N ◄── 1 USERS 1 ──► N SUPPORT_REQUESTS, AUDIT_LOGS
                     │ 1                 │ 1 (lecturer)
                     ▼ N                 ▼ N
   SUBJECTS 1 ──► N STUDENT_ENROLLMENTS  LECTURER_SUBJECTS N ◄── 1 SUBJECTS
@@ -431,8 +436,8 @@ erDiagram
     STUDENTS ||--o{ MENTORSHIP_SESSIONS : "requests (mentee)"
     USERS |o--o{ MENTORSHIP_SESSIONS : "handles (mentor)"
     SUBJECTS ||--o{ MENTORSHIP_SESSIONS : "about"
-    USERS ||--o{ PASSWORD_RESETS : "requests"
-    USERS |o--o{ PASSWORD_RESETS : "resolves (admin)"
+    USERS |o--o{ SUPPORT_REQUESTS : "sends (signed in)"
+    USERS |o--o{ SUPPORT_REQUESTS : "handles (admin)"
     STUDENT_ENROLLMENTS ||--o| PERFORMANCE : "holds marks"
     PERFORMANCE ||--o| PREDICTIONS : "calculated into (view)"
     USERS |o--o| ACCOUNT_REQUESTS : "created from"
@@ -528,14 +533,19 @@ erDiagram
         enum status
         mediumtext meeting_notes
     }
-    PASSWORD_RESETS {
+    SUPPORT_REQUESTS {
         int id PK
-        int user_id FK
+        char reference_no UK
+        enum role
+        varchar full_name
+        varchar id_number
         varchar email
-        varchar token
-        datetime expires_at
-        tinyint used
-        int resolved_by FK
+        enum category
+        varchar message
+        int user_id FK
+        enum status
+        varchar admin_note
+        int handled_by FK
         datetime resolved_at
     }
     ACCOUNT_REQUESTS {
@@ -646,7 +656,7 @@ erDiagram
 | student_enrollments | id, (student, subject, semester) | BCNF |
 | performance | enrollment_id | BCNF |
 | mentorship_sessions | session_id | 3NF |
-| password_resets | id | 3NF |
+| support_requests | id, reference_no | BCNF |
 | account_requests | id | 3NF (see generated columns below) |
 | audit_logs | id | 3NF |
 | login_attempts | id | BCNF |
@@ -658,7 +668,7 @@ erDiagram
 
 **Points that look like redundancy but aren't 3NF violations**
 
-- **Snapshot columns**: `audit_logs.actor_name`, `mentorship_sessions.mentor_name`, `password_resets.email`, and the name/email in `account_requests`. They record the value *at the time of the event*. If the user is renamed or deleted, these rows keep the old value, so they are not determined by `user_id`. They are facts about the event, which is why the audit trail survives account deletion.
+- **Snapshot columns**: `audit_logs.actor_name`, `mentorship_sessions.mentor_name`, the name/ID/email in `support_requests`, and the name/email in `account_requests`. They record the value *at the time of the event*. If the user is renamed or deleted, these rows keep the old value, so they are not determined by `user_id`. They are facts about the event, which is why the audit trail survives account deletion.
 - **clo_assessments.subject_id**: `clo_id → subject_id` (a CLO belongs to one subject) and `clo_id` is not a key on its own, so the table is 3NF but not BCNF — `subject_id` is part of the key (subject_id, component), which 3NF allows. Keeping it is deliberate: the primary key can then enforce "each component of a subject assesses exactly one CLO", and the composite foreign key (clo_id, subject_id) guarantees the two can never disagree. Removing it would need a trigger for the same rule.
 - **cqi_actions.attainment_pct**: the class attainment the lecturer responded to, recorded with the action. Later mark changes don't rewrite it, so it is a fact about the action, not derived data.
 - **Generated columns**: `semesters.active_flag` and `account_requests.pending_email`. The database calculates them from other columns, so they can never disagree with their source. They exist only so a UNIQUE index can enforce "one active semester" and "one pending request per email". Under a strictly literal reading they are derived values, so those two tables are listed as 3NF rather than BCNF.

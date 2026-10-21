@@ -36,7 +36,7 @@ There are 17 tables and 2 views:
 - `performance` — the marks of one enrolment (keyed by enrollment_id)
 - `audit_logs`
 - `mentorship_sessions`
-- `password_resets`
+- `support_requests` — Contact Admin requests (forgot password, cannot log in, other) with a reference number and status
 - `login_attempts`
 - `account_requests`
 - `plos` — Programme Learning Outcomes, with the score needed to attain one and the class KPI
@@ -94,10 +94,15 @@ The full attributes, keys, relationships, delete rules and a ready-to-render ERD
   - email and Student ID must be unique
 - The `users` and `students` inserts run in one **transaction**. Database error text is logged, never shown to the user.
 
-### 4.3 Forgot Password (admin-reviewed) — [auth/forgot_password.php](auth/forgot_password.php)
-- The user enters email + full name. The page **never changes a password**; it only files a request for an administrator.
-- The reply is identical whether or not the details match, and requests are rate-limited.
-- An admin verifies the person, issues a one-time temporary password (**Password Requests**, 5.8), and the user must replace it at next login.
+### 4.3 Contact Admin / Forgot Password — [auth/contact_admin.php](auth/contact_admin.php)
+- Opened from **Forgot password?** and **Contact the admin** on both sign-in pages; no sign-in needed. The old `forgot_password.php` address redirects here.
+- Explains how help works, then collects role (Student / Lecturer), full name, Student ID or Staff ID, registered email, category (**Forgot password**, **Cannot log in**, **Other**) and a message (optional for a forgotten password).
+- Validation on the server, mirrored in the browser: required fields, Student ID format (`n` + 7–10 digits), Staff ID characters, email format, message 10–1000 characters. Invalid fields are highlighted and the input is kept. The button shows a "Sending…" state and can't be pressed twice.
+- On success the request is saved and the page shows a **reference number** (e.g. SR-7KQ2M9XD) and what happens next. A failed save shows an error, never a confirmation.
+- The page **never asks for or changes a password**. The reply is identical whether or not the details match an account.
+- Spam protection: CSRF token, a hidden honeypot field, and rate limits (3 per email + network and 10 per network every 15 minutes).
+- Admins are emailed when mail is set up, and see a badge on **Support Requests** (5.8).
+- Signed-in students and lecturers have **Contact Admin** in their menu ([includes/support_page.php](includes/support_page.php)): their name, email and Student ID come from their account, and **My Requests** shows the status and the admin's note for each request.
 
 ### 4.4 Change Password — [auth/change_password.php](auth/change_password.php)
 - Available to every role from the sidebar.
@@ -130,7 +135,7 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
 - Students
 - Staff
 - Semesters
-- Password Requests (with a badge for open requests)
+- Support Requests (with a badge for Open requests)
 - Audit Log
 - Change Password
 - Logout
@@ -142,6 +147,7 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
   - average score for each active subject, with each bar coloured by status
   - **PLO attainment**: share of student CLO results this semester that met each PLO's target, against the class KPI
 - **CLOs below target (CQI):** every CLO under its class KPI this semester, and whether the lecturer has logged an action.
+- **Support Requests:** Open and In Progress counts, and the latest unresolved requests with links.
 - **Student table:** subjects enrolled and average score this semester. It has live search and a link to each profile.
 
 ### 5.2 Semesters — [manage_semesters.php](admin/manage_semesters.php)
@@ -191,10 +197,12 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
 - **Reset** a lecturer's password (becomes temporary).
 - **Delete** a lecturer. Their audit history and past sessions are **kept**, and their upcoming sessions are declined.
 
-### 5.8 Password Requests — [password_requests.php](admin/password_requests.php)
-- Shows open requests (user, role, Student ID, requested and expiry dates).
-- **Issue Temporary Password** (shown once) or **Reject**.
-- Also lists recently resolved requests and which admin handled each.
+### 5.8 Support Requests — [support_requests.php](admin/support_requests.php)
+- Lists requests from Contact Admin, Open first. Filter by status (Open + In Progress by default, Open, In Progress, Resolved, All), role and category, and search by reference, name, email or ID. Paged.
+- **Detail:** everything the requester gave, and a status (Open / In Progress / Resolved) with a note that signed-in requesters can see.
+- **Account Check** (admins only): whether the email is registered, and whether the role, name and Student ID match. A Student ID that belongs to another account is flagged.
+- **Issue Temporary Password** appears only for an unresolved Forgot password / Cannot log in request whose email and role match a student or lecturer account. The admin must choose how they verified the person's identity and tick a confirmation. The password is shown once; the request becomes Resolved; the audit log records the reset and how identity was verified. The user's open sessions end, and they must set a new password at next sign-in. Administrator accounts are never reset from a request.
+- The old `password_requests.php` address redirects here.
 
 ### 5.9 Audit Log — [audit_logs.php](admin/audit_logs.php)
 - Every mark change by every lecturer, including lecturers since deleted.
@@ -205,7 +213,7 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
 
 ## 6. Lecturer Portal (`lecturer/` + `actions/`)
 
-Sidebar: Dashboard · Enter Marks · CSV Upload · Audit Trail · Change Password · Logout.
+Sidebar: Dashboard · Enter Marks · CSV Upload · Audit Trail · Contact Admin · Change Password · Logout.
 
 ### 6.1 Dashboard — [lecturer_dashboard.php](lecturer/lecturer_dashboard.php)
 - **Stats** for the lecturer's active subjects and enrolled students this semester: total, passing, at risk, failing.
@@ -256,7 +264,7 @@ Sidebar: Dashboard · Enter Marks · CSV Upload · Audit Trail · Change Passwor
 
 ## 7. Student Portal (`student/`)
 
-Sidebar: Dashboard · What-If Calculator · Mentorship · My Transcript · Change Password · Logout.
+Sidebar: Dashboard · What-If Calculator · Mentorship · My Transcript · Contact Admin · Change Password · Logout.
 
 ### 7.1 Dashboard — [student_dashboard.php](student/student_dashboard.php)
 - **Profile card** and **stat tiles:** subjects, average, best and lowest score. Only graded subjects count; a real 0 counts; "—" if none are graded.
@@ -341,8 +349,8 @@ Sidebar: Dashboard · What-If Calculator · Mentorship · My Transcript · Chang
    - mentor ↔ subject eligibility
    - session ownership
 6. Session hardening: regeneration on login and password change, HttpOnly/SameSite cookies, 30-minute idle timeout
-7. Rate limiting on login and password-reset requests
-8. Admin-verified password resets that never confirm whether an account exists
+7. Rate limiting on login and Contact Admin requests, plus a honeypot field on the public form
+8. Admin-verified password resets that never confirm whether an account exists: a support request never changes an account; the admin records how they verified the person before issuing a one-time temporary password
 9. Transactions for registration, mark saves, CSV uploads, enrolments and subject changes
 10. Least-privilege database account; internal folders blocked from the web
 11. Soft delete for subjects; history kept when lecturers are deleted (SET NULL plus stored names)

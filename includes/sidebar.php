@@ -15,7 +15,7 @@ $sidebar_menus = [
         ['manage_semesters.php',   'bi-calendar3',      'Semesters'],
         ['model_evaluation.php',   'bi-clipboard-data', 'Warning Accuracy'],
         ['account_requests.php',   'bi-person-plus',    'Account Requests'],
-        ['password_requests.php',  'bi-key',            'Password Requests'],
+        ['support_requests.php',   'bi-life-preserver', 'Support Requests'],
         ['audit_logs.php',         'bi-clock-history',  'Audit Log'],
     ],
     'lecturer' => [
@@ -23,12 +23,14 @@ $sidebar_menus = [
         ['enter_marks.php',        'bi-pencil-square',  'Enter Marks'],
         ['csv_upload.php',         'bi-cloud-arrow-up', 'CSV Upload'],
         ['audit_trail.php',        'bi-clock-history',  'Audit Trail'],
+        ['contact_admin.php',      'bi-headset',        'Contact Admin'],
     ],
     'student' => [
         ['student_dashboard.php',  'bi-grid-1x2',       'Dashboard'],
         ['predict.php',            'bi-calculator',     'What-If Calculator'],
         ['mentorship.php',         'bi-people',         'Mentorship'],
         ['transcript.php',         'bi-file-earmark-text', 'My Transcript'],
+        ['contact_admin.php',      'bi-headset',        'Contact Admin'],
     ],
 ];
 
@@ -39,11 +41,12 @@ $sidebar_role   = $_SESSION['role'] ?? 'student';
 $sidebar_active = basename($_SERVER['PHP_SELF']);
 $sidebar_active = $sidebar_aliases[$sidebar_active] ?? $sidebar_active;
 
-// Pending password-reset requests are shown as a badge for admins.
+// Admins see how many support requests are still Open (not yet picked up)
+// and how many account requests are pending, as badges.
 $sidebar_badges = [];
 if ($sidebar_role === 'admin') {
-    $sidebar_badge_q = mysqli_query($conn, "SELECT COUNT(*) AS c FROM password_resets WHERE used = 0 AND expires_at > NOW()");
-    $sidebar_badges['password_requests.php'] = (int)mysqli_fetch_assoc($sidebar_badge_q)['c'];
+    $sidebar_badge_q = mysqli_query($conn, "SELECT COUNT(*) AS c FROM support_requests WHERE status = 'Open'");
+    $sidebar_badges['support_requests.php'] = (int)mysqli_fetch_assoc($sidebar_badge_q)['c'];
     try {
         $sidebar_badge_q = mysqli_query($conn, "SELECT COUNT(*) AS c FROM account_requests WHERE status = 'Pending'");
         $sidebar_badges['account_requests.php'] = (int)mysqli_fetch_assoc($sidebar_badge_q)['c'];

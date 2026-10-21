@@ -49,6 +49,16 @@ while ($row = mysqli_fetch_assoc($subject_chart)) {
     $subject_statuses[] = predicted_status($avg);
 }
 
+// Support requests still waiting for an admin (admin/support_requests.php).
+require '../includes/support.php';
+$support_counts = array_fill_keys(SUPPORT_STATUSES, 0);
+foreach (mysqli_fetch_all(mysqli_query($conn, "SELECT status, COUNT(*) AS c FROM support_requests GROUP BY status"), MYSQLI_ASSOC) as $row) {
+    $support_counts[$row['status']] = (int)$row['c'];
+}
+$support_recent = mysqli_fetch_all(mysqli_query($conn, "SELECT id, reference_no, full_name, role, category, status, created_at
+                                                         FROM support_requests WHERE status <> 'Resolved'
+                                                         ORDER BY FIELD(status, 'Open', 'In Progress'), created_at DESC LIMIT 5"), MYSQLI_ASSOC);
+
 // Programme Learning Outcome attainment across all active subjects this
 // semester, and the CLOs that missed their class target (includes/obe.php).
 require '../includes/obe.php';
@@ -191,7 +201,38 @@ require '../includes/page_start.php';
         </div>
     </div>
 
-    
+    <!-- Support Requests -->
+    <div class="dashboard-card mb-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div class="card-header-title mb-0">
+                <i class="bi bi-life-preserver text-primary"></i>Support Requests
+            </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center" style="font-size:0.82rem;">
+                <span class="badge <?php echo support_status_class('Open'); ?>"><?php echo $support_counts['Open']; ?> Open</span>
+                <span class="badge <?php echo support_status_class('In Progress'); ?>"><?php echo $support_counts['In Progress']; ?> In Progress</span>
+                <a href="support_requests.php" class="btn btn-sm btn-outline-secondary">View all</a>
+            </div>
+        </div>
+        <?php if ($support_recent): ?>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" style="font-size:0.85rem;">
+                    <tbody>
+                    <?php foreach ($support_recent as $sr): ?>
+                        <tr>
+                            <td style="padding:10px 8px;"><a href="support_requests.php?id=<?php echo (int)$sr['id']; ?>" class="fw-bold text-decoration-none"><?php echo h($sr['reference_no']); ?></a></td>
+                            <td style="padding:10px 8px;"><?php echo h($sr['full_name']); ?> <span class="text-muted small">(<?php echo h(ucfirst($sr['role'])); ?>)</span></td>
+                            <td style="padding:10px 8px;"><?php echo h(support_category_label($sr['category'])); ?></td>
+                            <td style="padding:10px 8px;"><span class="badge <?php echo support_status_class($sr['status']); ?>"><?php echo h($sr['status']); ?></span></td>
+                            <td class="text-end text-muted small text-nowrap" style="padding:10px 8px;"><?php echo date('d M Y, h:i A', strtotime($sr['created_at'])); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else: ?>
+            <p class="text-muted mb-0" style="font-size:0.88rem;"><i class="bi bi-check2-circle me-1"></i>No open support requests.</p>
+        <?php endif; ?>
+    </div>
 
     <!-- Charts Row -->
     <div class="row g-4 mb-4">

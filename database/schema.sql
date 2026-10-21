@@ -2,7 +2,7 @@
 -- Fresh install: create the database `student_prediction`
 -- (CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci), import this file as a
 -- user that can CREATE TRIGGER (e.g. root), then follow README
--- "First-time setup". Existing installs: run database/migrations/001–010
+-- "First-time setup". Existing installs: run database/migrations/001–011
 -- in order instead.
 --
 -- Generated from a database with all migrations applied, so a fresh
@@ -133,24 +133,6 @@ CREATE TABLE `mentorship_sessions` (
   CONSTRAINT `mentorship_sessions_ibfk_3` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `password_resets` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) NOT NULL,
-  `email` varchar(100) NOT NULL,
-  `token` varchar(255) NOT NULL,
-  `expires_at` datetime NOT NULL,
-  `used` tinyint(1) NOT NULL DEFAULT 0,
-  `resolved_by` int(11) DEFAULT NULL,
-  `resolved_at` datetime DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `idx_reset_user` (`user_id`),
-  KEY `idx_reset_open` (`used`,`expires_at`),
-  KEY `password_resets_admin_fk` (`resolved_by`),
-  CONSTRAINT `password_resets_admin_fk` FOREIGN KEY (`resolved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `password_resets_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE `performance` (
   `enrollment_id` int(11) NOT NULL,
   `assignment` decimal(5,2) DEFAULT NULL,
@@ -243,6 +225,32 @@ CREATE TABLE `subjects` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `subject_code` (`subject_code`),
   CONSTRAINT `chk_subject_credits` CHECK (`credit_hours` between 1.0 and 6.0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `support_requests` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `reference_no` char(11) NOT NULL,
+  `role` enum('student','lecturer') NOT NULL,
+  `full_name` varchar(100) NOT NULL,
+  `id_number` varchar(30) DEFAULT NULL,
+  `email` varchar(100) NOT NULL,
+  `category` enum('forgot_password','cannot_login','other') NOT NULL,
+  `message` varchar(1000) DEFAULT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `status` enum('Open','In Progress','Resolved') NOT NULL DEFAULT 'Open',
+  `admin_note` varchar(500) DEFAULT NULL,
+  `handled_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT NULL,
+  `resolved_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_support_reference` (`reference_no`),
+  KEY `idx_support_status` (`status`,`created_at`),
+  KEY `idx_support_user` (`user_id`),
+  KEY `idx_support_email` (`email`),
+  KEY `idx_support_handled_by` (`handled_by`),
+  CONSTRAINT `support_requests_admin_fk` FOREIGN KEY (`handled_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `support_requests_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `users` (

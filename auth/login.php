@@ -333,8 +333,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <div class="mb-4">
                 <div class="d-flex justify-content-between align-items-center">
                     <label class="form-label mb-0" for="passwordField">Password</label>
-                    <a href="forgot_password.php<?php echo $portal === 'staff' ? '?portal=staff' : ''; ?>" class="link-custom" style="font-size: 0.75rem; font-weight: 500;">
-                        <i class="bi bi-question-circle me-1"></i>Forgot Password?
+                    <a href="contact_admin.php?topic=forgot_password<?php echo $portal === 'staff' ? '&amp;portal=staff' : ''; ?>" class="link-custom" style="font-size: 0.8rem; font-weight: 600;">
+                        <i class="bi bi-question-circle me-1"></i>Forgot password?
                     </a>
                 </div>
                 <div class="input-group mt-1">
@@ -375,6 +375,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <a href="login.php?portal=staff" class="link-custom"><i class="bi bi-shield-lock me-1"></i>Staff & Admin sign in</a>
         </div>
         <?php endif; ?>
+
+        <div class="text-center mt-3" style="font-size: 0.8rem;">
+            <span class="text-muted">Can't sign in?</span>
+            <a href="contact_admin.php?topic=cannot_login<?php echo $portal === 'staff' ? '&amp;portal=staff' : ''; ?>" class="link-custom"><i class="bi bi-headset me-1"></i>Contact the admin</a>
+        </div>
 
         <div class="text-center mt-4">
             <a href="../index.php" class="link-custom" style="font-size:0.85rem;">

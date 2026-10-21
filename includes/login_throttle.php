@@ -26,14 +26,15 @@ function login_throttle_identifier($email, $scope = 'login') {
     return hash('sha256', $prefix . strtolower(trim((string)$email)) . '|' . $ip);
 }
 
-function login_is_throttled($conn, $email, $scope = 'login') {
+// $max: how many attempts the window allows (most forms use the default).
+function login_is_throttled($conn, $email, $scope = 'login', $max = LOGIN_MAX_ATTEMPTS) {
     $id   = login_throttle_identifier($email, $scope);
     $stmt = mysqli_prepare($conn, "SELECT COUNT(*) as c FROM login_attempts WHERE identifier = ? AND attempted_at > (NOW() - INTERVAL " . LOGIN_WINDOW_MINUTES . " MINUTE)");
     mysqli_stmt_bind_param($stmt, "s", $id);
     mysqli_stmt_execute($stmt);
     $count = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['c'];
     mysqli_stmt_close($stmt);
-    return $count >= LOGIN_MAX_ATTEMPTS;
+    return $count >= $max;
 }
 
 function login_record_failed_attempt($conn, $email, $scope = 'login') {
