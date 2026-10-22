@@ -30,9 +30,11 @@ function csv_download($filename, array $header, array $rows) {
     header('Cache-Control: no-store');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, $header);
+    // Standard CSV (RFC 4180): quotes doubled, no backslash escape. Passed
+    // explicitly: PHP 8.4 deprecates relying on the default.
+    fputcsv($out, $header, ',', '"', '');
     foreach ($rows as $row) {
-        fputcsv($out, array_map('csv_safe_cell', $row));
+        fputcsv($out, array_map('csv_safe_cell', $row), ',', '"', '');
     }
     fclose($out);
     exit();
