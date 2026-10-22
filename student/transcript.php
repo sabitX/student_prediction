@@ -4,6 +4,7 @@ require '../config/config.php';
 require '../includes/semester.php';
 require '../includes/early_warning.php';
 require '../includes/obe.php';
+require '../includes/progress.php';
 
 $user_id = $_SESSION['user_id'];
 
@@ -42,20 +43,6 @@ mysqli_stmt_bind_param($stmt_perf, "i", $student_db_id);
 mysqli_stmt_execute($stmt_perf);
 $performance = mysqli_stmt_get_result($stmt_perf);
 
-function gradeFromScore($score) {
-    if ($score >= 90) return ['A+', 4.00];
-    if ($score >= 80) return ['A',  4.00];
-    if ($score >= 75) return ['A-', 3.70];
-    if ($score >= 70) return ['B+', 3.50];
-    if ($score >= 65) return ['B',  3.00];
-    if ($score >= 60) return ['B-', 2.75];
-    if ($score >= 55) return ['C+', 2.50];
-    if ($score >= 50) return ['C',  2.00];
-    if ($score >= 45) return ['D+', 1.50];
-    if ($score >= 40) return ['D',  1.00];
-    return ['F', 0.00];
-}
-
 // Build one block per semester with its own GPA plus the running
 // (cumulative) totals up to and including that semester.
 // BR-30: GPA = Σ(GP × Credit Hours) ÷ Σ(Credit Hours of graded subjects)
@@ -68,7 +55,7 @@ while ($row = mysqli_fetch_assoc($performance)) {
     }
     $wt = (float)$row['credit_hours'];
     if ($row['total_score'] !== null) {
-        [$grade, $gp] = gradeFromScore((float)$row['total_score']);
+        [$grade, $gp] = grade_from_score((float)$row['total_score']);   // includes/progress.php
         $semesters[$sid]['credits'] += $wt;
         $semesters[$sid]['points']  += $gp * $wt;
         $passed = ($row['predicted_status'] !== 'Fail');

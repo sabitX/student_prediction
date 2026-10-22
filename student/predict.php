@@ -63,7 +63,9 @@ if (isset($_GET['get_marks']) && isset($_GET['subject_id'])) {
     }
 
     header('Content-Type: application/json');
-    echo json_encode(($marks ?: ['assignment' => '', 'midterm' => '', 'attendance' => '']) + ['clos' => $clos]);
+    // This subject's weights this semester, so the calculator matches the official total.
+    echo json_encode(($marks ?: ['assignment' => '', 'midterm' => '', 'attendance' => ''])
+                     + ['clos' => $clos, 'weights' => subject_weights($conn, $subject_id, $semester_id)]);
     exit();
 }
 ?>
@@ -174,7 +176,7 @@ require '../includes/page_start.php';
         <div class="row g-4 mb-4">
             <div class="col-6">
                 <label class="form-label fw-semibold">
-                    Assignment <span style="color:#7DD3D6; font-size:0.75rem;">(×20%)</span>
+                    Assignment <span class="weight-tag" data-component="assignment" style="color:#7DD3D6; font-size:0.75rem;"></span>
                     <span class="locked-label ms-1" id="label_assignment" style="display:none;">
                         <i class="bi bi-lock-fill"></i> Database
                     </span>
@@ -185,7 +187,7 @@ require '../includes/page_start.php';
             </div>
             <div class="col-6">
                 <label class="form-label fw-semibold">
-                    Midterm <span style="color:#7DD3D6; font-size:0.75rem;">(×30%)</span>
+                    Midterm <span class="weight-tag" data-component="midterm" style="color:#7DD3D6; font-size:0.75rem;"></span>
                     <span class="locked-label ms-1" id="label_midterm" style="display:none;">
                         <i class="bi bi-lock-fill"></i> Database
                     </span>
@@ -196,7 +198,7 @@ require '../includes/page_start.php';
             </div>
             <div class="col-6">
                 <label class="form-label fw-semibold" style="color:#0D7377;">
-                    Final Exam <span style="color:#7DD3D6; font-size:0.75rem;">(×40%)</span>
+                    Final Exam <span class="weight-tag" data-component="final_exam" style="color:#7DD3D6; font-size:0.75rem;"></span>
                 </label>
                 <input type="number" id="c_final" class="form-control input-target"
                        min="0" max="100" step="0.01"
@@ -207,7 +209,7 @@ require '../includes/page_start.php';
             </div>
             <div class="col-6">
                 <label class="form-label fw-semibold">
-                    Attendance <span style="color:#7DD3D6; font-size:0.75rem;">(×10%)</span>
+                    Attendance <span class="weight-tag" data-component="attendance" style="color:#7DD3D6; font-size:0.75rem;"></span>
                     <span class="locked-label ms-1" id="label_attendance" style="display:none;">
                         <i class="bi bi-lock-fill"></i> Database
                     </span>
@@ -242,7 +244,7 @@ require '../includes/page_start.php';
         <div class="p-3 rounded" style="background:#F1F5F9;">
             <small class="text-muted d-block" style="line-height: 1.6;">
                 <strong style="color:#1A3A5C;">Scoring Formula:</strong><br>
-                Assignment×20% + Midterm×30% + Final Exam×40% + Attendance×10%<br>
+                <span id="formula-text"></span><br>
                 <span style="color:#198754;">≥80 Excellent</span> &nbsp;|&nbsp;
                 <span style="color:#2563EB;">≥60 Pass</span> &nbsp;|&nbsp;
                 <span style="color:#F59E0B;">≥50 At Risk</span> &nbsp;|&nbsp;
@@ -431,6 +433,7 @@ function loadExistingMarks(subjectId) {
     });
     fField.value = '';
     subjectClos = [];
+    setWeights(DEFAULT_WEIGHTS);
     calcWhatIf();
 
     if (!subjectId) return;
@@ -439,6 +442,7 @@ function loadExistingMarks(subjectId) {
         .then(r => r.json())
         .then(data => {
             subjectClos = data.clos || [];
+            setWeights(data.weights || DEFAULT_WEIGHTS);
             if (data.assignment !== '' && data.assignment !== null) {
                 aField.value = data.assignment;
                 aField.classList.add('locked-field');
@@ -463,7 +467,17 @@ function loadExistingMarks(subjectId) {
 
 // The selected subject's CLOs (from includes/obe.php via get_marks).
 let subjectClos = [];
-const MARK_WEIGHTS   = <?php echo json_encode(MARK_WEIGHTS); ?>;
+// Weights of the selected subject this semester (defaults until one is chosen).
+const DEFAULT_WEIGHTS = <?php echo json_encode(MARK_WEIGHTS); ?>;
+let weights = DEFAULT_WEIGHTS;
+const pct = w => (Math.round(w * 10000) / 100) + '%';
+function setWeights(w) {
+    weights = w;
+    document.querySelectorAll('.weight-tag').forEach(el => el.textContent = '(×' + pct(w[el.dataset.component]) + ')');
+    document.getElementById('formula-text').textContent =
+        `Assignment×${pct(w.assignment)} + Midterm×${pct(w.midterm)} + Final Exam×${pct(w.final_exam)} + Attendance×${pct(w.attendance)}`;
+}
+document.addEventListener('DOMContentLoaded', () => setWeights(weights));
 const ATTENDANCE_BAR = <?php echo (int)ATTENDANCE_BAR; ?>;
 
 // Each CLO's score is the weighted average of the components mapped to it;
@@ -478,8 +492,8 @@ function renderClos(values) {
         let sum = 0, weight = 0, complete = clo.components.length > 0;
         clo.components.forEach(c => {
             if (values[c] === '') { complete = false; return; }
-            sum += parseFloat(values[c]) * MARK_WEIGHTS[c];
-            weight += MARK_WEIGHTS[c];
+            sum += parseFloat(values[c]) * weights[c];
+            weight += weights[c];
         });
         const score = complete ? sum / weight : null;
         const attained = score !== null && score >= clo.threshold;
@@ -542,7 +556,7 @@ function calcWhatIf() {
     resultBox.style.display = 'block';
     emptyBox.style.display  = 'none';
 
-    const total = (a * 0.20) + (m * 0.30) + (f * 0.40) + (t * 0.10);
+    const total = (a * weights.assignment) + (m * weights.midterm) + (f * weights.final_exam) + (t * weights.attendance);
 
     let status = '—', color = '#64748B', advice = '',
         adviceClass = 'alert-secondary', badgeText = 'text-white';
@@ -557,7 +571,7 @@ function calcWhatIf() {
         adviceClass = 'alert-primary border-primary';
     } else if (total >= 50) {
         status = 'At Risk'; color = '#F59E0B';
-        advice = '⚠️ You are At Risk. Focus on your Final Exam — it carries 40%.';
+        advice = `⚠️ You are At Risk. Focus on your Final Exam — it carries ${pct(weights.final_exam)}.`;
         adviceClass = 'alert-warning border-warning'; badgeText = 'text-dark';
     } else if (total > 0) {
         status = 'Fail'; color = '#DC2626';
@@ -579,18 +593,18 @@ function calcWhatIf() {
     advBox.className = `alert py-2 text-center mb-3 ${adviceClass}`;
     document.getElementById('result-advice').textContent = advice;
 
-    document.getElementById('b_assignment').textContent = a > 0 ? (a*0.20).toFixed(1) : '—';
-    document.getElementById('b_midterm').textContent    = m > 0 ? (m*0.30).toFixed(1) : '—';
-    document.getElementById('b_final').textContent      = f > 0 ? (f*0.40).toFixed(1) : '—';
-    document.getElementById('b_attendance').textContent = t > 0 ? (t*0.10).toFixed(1) : '—';
+    document.getElementById('b_assignment').textContent = a > 0 ? (a*weights.assignment).toFixed(1) : '—';
+    document.getElementById('b_midterm').textContent    = m > 0 ? (m*weights.midterm).toFixed(1) : '—';
+    document.getElementById('b_final').textContent      = f > 0 ? (f*weights.final_exam).toFixed(1) : '—';
+    document.getElementById('b_attendance').textContent = t > 0 ? (t*weights.attendance).toFixed(1) : '—';
 
     const minBox   = document.getElementById('min-final-box');
     const minText  = document.getElementById('min-final-text');
     const minAlert = document.getElementById('min-final-alert');
 
     if (fVal === '' && (aVal !== '' || mVal !== '' || tVal !== '')) {
-        const withoutFinal = (a*0.20) + (m*0.30) + (t*0.10);
-        const needed = (60 - withoutFinal) / 0.40;
+        const withoutFinal = (a*weights.assignment) + (m*weights.midterm) + (t*weights.attendance);
+        const needed = (60 - withoutFinal) / weights.final_exam;
         if (needed <= 0) {
             minText.innerHTML  = '✅ You will <strong>Pass</strong> regardless of your Final Exam score.';
             minAlert.className = 'alert alert-success py-2 mb-0 border-success';
@@ -618,7 +632,7 @@ function calcWhatIf() {
         header.className    = isAtRisk ? 'modal-header bg-warning border-0' : 'modal-header bg-danger text-white border-0';
         icon.textContent    = isAtRisk ? '⚠️' : '❌';
         message.textContent = isAtRisk
-            ? 'You are At Risk! Focus on your Final Exam — it carries 40% of your grade.'
+            ? `You are At Risk! Focus on your Final Exam — it carries ${pct(weights.final_exam)} of your grade.`
             : 'You are projected to Fail. Speak to your lecturer for academic support.';
 
         if (!window.lastStatus || window.lastStatus !== status) {

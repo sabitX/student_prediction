@@ -77,7 +77,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $copied = mysqli_stmt_affected_rows($stmt);
                 mysqli_stmt_close($stmt);
             }
-            audit_log($conn, 'Active semester changed', "Semester: $sem_name" . ($copied ? " | Lecturer assignments carried over: $copied" : ''));
+            // Assessment weights carry over the same way, but only to subjects
+            // with no weights and no marks yet in this semester, so going
+            // back to an earlier semester never changes its results.
+            $weights_copied = 0;
+            if ($prev_id > 0 && $prev_id !== $id) {
+                $stmt = mysqli_prepare($conn, "INSERT IGNORE INTO subject_weights (subject_id, semester_id, weight_assignment, weight_midterm, weight_final_exam, weight_attendance)
+                                               SELECT w.subject_id, ?, w.weight_assignment, w.weight_midterm, w.weight_final_exam, w.weight_attendance
+                                               FROM subject_weights w
+                                               WHERE w.semester_id = ?
+                                                 AND NOT EXISTS (SELECT 1 FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id
+                                                                 WHERE e.subject_id = w.subject_id AND e.semester_id = ?)");
+                mysqli_stmt_bind_param($stmt, "iii", $id, $prev_id, $id);
+                mysqli_stmt_execute($stmt);
+                $weights_copied = mysqli_stmt_affected_rows($stmt);
+                mysqli_stmt_close($stmt);
+            }
+            audit_log($conn, 'Active semester changed', "Semester: $sem_name" . ($copied ? " | Lecturer assignments carried over: $copied" : '')
+                . ($weights_copied ? " | Assessment weights carried over: $weights_copied" : ''));
             mysqli_commit($conn);
             $success = "Active semester changed. Marks, enrolments and dashboards now use it; earlier semesters stay on students' transcripts."
                      . ($copied ? " $copied lecturer assignment" . ($copied == 1 ? '' : 's') . " carried over from the previous semester — change them under Subjects." : '');
@@ -175,6 +192,12 @@ require '../includes/page_start.php';
                                     <td class="text-center"><?php echo (int)$s['enrolments']; ?></td>
                                     <td class="text-center"><?php echo (int)$s['mark_rows']; ?></td>
                                     <td class="text-end text-nowrap">
+                                        <?php if ($s['enrolments'] > 0): ?>
+                                            <div class="btn-group btn-group-sm me-1" role="group" aria-label="Downloads for <?php echo h($s['semester_name']); ?>">
+                                                <a href="export.php?type=results&amp;semester_id=<?php echo (int)$s['id']; ?>" class="btn btn-outline-secondary" title="Every enrolment's marks, total and status"><i class="bi bi-download me-1"></i>Results</a>
+                                                <a href="export.php?type=at_risk&amp;semester_id=<?php echo (int)$s['id']; ?>" class="btn btn-outline-secondary" title="At Risk / Fail results and early warnings">At-risk</a>
+                                            </div>
+                                        <?php endif; ?>
                                         <?php if (!$s['is_active']): ?>
                                             <form method="POST" class="d-inline" onsubmit="return confirm('Make this the active semester? New marks and enrolments will go into it.');">
                                                 <?php echo csrf_field(); ?>

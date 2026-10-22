@@ -36,9 +36,10 @@ $student_db_id = $student['id'];
 $semester_id = get_active_semester_id($conn);
 $stmt_perf = mysqli_prepare($conn, "SELECT sub.id AS subject_id, sub.subject_name, sub.subject_code,
                                      p.assignment, p.midterm, p.final_exam, p.attendance,
-                                     pr.predicted_status, pr.total_score
+                                     pr.predicted_status, pr.total_score, " . WEIGHTS_COLS . "
                                      FROM student_enrollments e
                                      JOIN subjects sub ON e.subject_id = sub.id
+                                     " . WEIGHTS_JOIN . "
                                      LEFT JOIN performance p ON p.enrollment_id = e.id
                                      LEFT JOIN predictions pr ON pr.student_id = e.student_id AND pr.subject_id = e.subject_id AND pr.semester_id = e.semester_id
                                      WHERE e.student_id = ? AND e.semester_id = ?
@@ -74,6 +75,10 @@ foreach (early_warnings($conn, $semester_id, 'student', $student_db_id) as $ew) 
 // Learning outcomes of this semester's subjects, and cumulative PLO
 // attainment for the radar chart (includes/obe.php).
 $outcomes = obe_subject_outcomes($conn, array_column($rows, 'subject_id'));
+
+// GPA and CGPA for every semester so far (includes/progress.php).
+require '../includes/progress.php';
+$history = student_semester_history($conn, $student_db_id);
 $plo_attainment = obe_student_plo($conn, $student_db_id);
 $plo_has_data   = count(array_filter(array_column($plo_attainment, 'score'), fn($s) => $s !== null)) > 0;
 
@@ -237,6 +242,9 @@ require '../includes/page_start.php';
         </div>
     </div>
 
+    <!-- Progress across semesters -->
+    <div class="mb-4"><?php render_progress_card($history, 'progressChart', 'My Progress Across Semesters'); ?></div>
+
     <!-- Learning outcomes + mid-semester outlook -->
     <div class="row g-4 mb-4">
         <div class="col-lg-5">
@@ -324,10 +332,10 @@ require '../includes/page_start.php';
             <thead class="table-custom-header">
                 <tr>
                     <th class="ps-4">Subject</th>
-                    <th class="text-center">Assignment<br><span style="color:#7DD3D6; font-size:0.7rem;">(20%)</span></th>
-                    <th class="text-center">Midterm<br><span style="color:#7DD3D6; font-size:0.7rem;">(30%)</span></th>
-                    <th class="text-center">Final Exam<br><span style="color:#7DD3D6; font-size:0.7rem;">(40%)</span></th>
-                    <th class="text-center">Attendance<br><span style="color:#7DD3D6; font-size:0.7rem;">(10%)</span></th>
+                    <th class="text-center">Assignment</th>
+                    <th class="text-center">Midterm</th>
+                    <th class="text-center">Final Exam</th>
+                    <th class="text-center">Attendance</th>
                     <th style="min-width:180px;">Total Score</th>
                     <th class="text-center pe-4">Result</th>
                 </tr>
@@ -361,10 +369,13 @@ require '../includes/page_start.php';
                         <?php endforeach; ?>
                         </div>
                     </td>
-                    <td class="text-center"><?php echo mark_cell($row['assignment']); ?></td>
-                    <td class="text-center"><?php echo mark_cell($row['midterm']); ?></td>
-                    <td class="text-center"><?php echo mark_cell($row['final_exam']); ?></td>
-                    <td class="text-center"><?php echo mark_cell($row['attendance']); ?></td>
+                    <?php $row_weights = row_weights($row);
+                    foreach (['assignment', 'midterm', 'final_exam', 'attendance'] as $component): ?>
+                    <td class="text-center">
+                        <?php echo mark_cell($row[$component]); ?>
+                        <div class="text-muted" style="font-size:0.7rem;" title="Weight of this component in <?php echo h($row['subject_code']); ?>">×<?php echo weight_pct($row_weights[$component]); ?></div>
+                    </td>
+                    <?php endforeach; ?>
                     <td>
                         <div class="d-flex align-items-center gap-2">
                             <div class="progress flex-grow-1" style="height:10px; border-radius:6px; background:#F1F5F9;">
@@ -409,8 +420,12 @@ require '../includes/page_start.php';
 ob_start();
 ?>
 <?php require '../includes/onboarding.php'; ?>
-<?php if ($plo_has_data): ?>
+<?php $progress_script = progress_chart_script($history, 'progressChart'); ?>
+<?php if ($plo_has_data || $progress_script): ?>
 <script src="../assets/vendor/chartjs/chart.umd.min.js"></script>
+<?php echo $progress_script; ?>
+<?php endif; ?>
+<?php if ($plo_has_data): ?>
 <script>
 (function () {
     const dark  = document.documentElement.getAttribute('data-bs-theme') === 'dark';

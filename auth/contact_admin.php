@@ -294,6 +294,7 @@ $field_class = fn($field) => isset($errors[$field]) ? ' is-invalid' : '';
                     <div class="form-text text-end"><span id="messageCount">0</span> / <?php echo SUPPORT_MESSAGE_MAX; ?></div>
                 </div>
 
+                <p class="text-muted text-center mb-2" style="font-size:0.75rem;"><i class="bi bi-shield-check me-1"></i>How we use these details: <a href="privacy.php" class="link-custom">Privacy notice</a></p>
                 <button type="submit" class="btn btn-primary-custom w-100 mt-1" id="submitBtn">
                     <span class="btn-label"><i class="bi bi-send me-2"></i>Send to Administrator</span>
                     <span class="btn-loading d-none"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Sending…</span>

@@ -12,9 +12,11 @@
 SPTS records four assessment components for each student, in each subject, in each **semester**. It then computes a **weighted total** and classifies the student's standing:
 
 ```
-Total Score = Assignment × 20% + Midterm × 30% + Final Exam × 40% + Attendance × 10%
+Total Score = Assignment × A% + Midterm × M% + Final Exam × F% + Attendance × T%
   ≥ 80 Excellent · ≥ 60 Pass · ≥ 50 At Risk · < 50 Fail
 ```
+
+- **Weights per subject, per semester.** The admin sets each subject's weights for the active semester (default 20/30/40/10; each 5–80%, together 100%). Earlier semesters keep theirs, so published results never change; a new semester starts with the previous one's.
 
 - **Progressive marks.** A blank mark means "not assessed yet" and is stored as NULL, never as 0. The total and status appear only when all four marks exist; until then the subject shows *Pending*.
 - **Semesters.** Exactly one semester is active. Enrolments, marks and results all belong to a semester, so the transcript can show per-semester GPA and cumulative CGPA.
@@ -37,6 +39,8 @@ There are 17 tables and 2 views:
 - `audit_logs`
 - `mentorship_sessions`
 - `support_requests` — Contact Admin requests (forgot password, cannot log in, other) with a reference number and status
+- `subject_weights` — each subject's assessment weights for each semester
+- `early_warning_notices` — when a flagged student was last emailed about an early warning, at what level and by whom
 - `login_attempts`
 - `account_requests`
 - `plos` — Programme Learning Outcomes, with the score needed to attain one and the class KPI
@@ -60,6 +64,10 @@ The full attributes, keys, relationships, delete rules and a ready-to-render ERD
 - Set through `.htaccess`. It works at any URL depth because its links and styles use absolute paths.
 - Supports dark mode.
 - Signed-in users get a "Back to Dashboard" button.
+
+### 3.3 Privacy Notice — [auth/privacy.php](auth/privacy.php)
+- What personal data SPTS keeps and why, who can see it (student, lecturer, peer mentor, admin), the cookies and browser storage it uses (session cookie, one-minute notice cookie, theme choice, Google Fonts), how long things are kept, and how to ask to see or correct data (through Contact Admin).
+- Linked from the landing page, both sign-in pages, every form that collects personal data, and the signed-in Contact Admin page.
 
 ---
 
@@ -149,12 +157,15 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
 - **CLOs below target (CQI):** every CLO under its class KPI this semester, and whether the lecturer has logged an action.
 - **Support Requests:** Open and In Progress counts, and the latest unresolved requests with links.
 - **Student table:** subjects enrolled and average score this semester. It has live search and a link to each profile.
+- **Downloads:** Results CSV (every enrolment this semester) and At-risk list CSV.
 
 ### 5.2 Semesters — [manage_semesters.php](admin/manage_semesters.php)
 - Add a semester (unique name, valid start and end dates).
 - **Set Active**: exactly one semester is active at a time.
 - Delete a semester only if it has no enrolments or marks.
 - Each semester shows its enrolment and mark-record counts.
+- **Downloads** for any semester with enrolments: **Results** CSV (every enrolment: marks, weights, total, status, remark such as BE) and **At-risk** CSV (At Risk / Fail results plus early warnings before the final, with reasons and whether the student was emailed). Each export is recorded in the audit log; cells that would run as spreadsheet formulas are neutralised.
+- Activating a semester also carries each subject's **assessment weights** over to subjects with no weights and no marks there yet.
 
 ### 5.3 Subjects — [manage_subjects.php](admin/manage_subjects.php)
 - **Add:**
@@ -163,7 +174,7 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
   - An existing code is rejected with a clear message: use Edit, or Restore if it is archived.
 - **Credit hours** (1–6, steps of 0.5) on Add and Edit; the transcript's GPA uses them.
 - **Edit** (modal): rename the subject, change its credit hours, and change or remove its lecturer for the active semester (one lecturer per subject per semester). Activating a new semester carries the previous semester's lecturers over if it has none yet.
-- **Outcomes** ([subject_outcomes.php](admin/subject_outcomes.php)): word CLO1–CLO4, tag each with a Bloom's level and a PLO, and choose which CLO each mark component assesses. Shows this semester's attainment per CLO. New subjects start with default outcomes.
+- **Weights & Outcomes** ([subject_outcomes.php](admin/subject_outcomes.php)): set the subject's **assessment weights** for the active semester (each 5–80%, together 100%, with a live total; changes are audited and recalculate this semester's totals only), word CLO1–CLO4, tag each with a Bloom's level and a PLO, and choose which CLO each mark component assesses. Shows this semester's attainment per CLO. New subjects start with default outcomes.
 - **Programme outcomes** (same page, shared by every subject): edit each PLO's title, description, target score and class KPI.
 
 ### 5.3a Early-Warning Accuracy — [model_evaluation.php](admin/model_evaluation.php)
@@ -189,6 +200,7 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
   - **Delete** (cascades to the student's records, with confirmation)
 
 ### 5.6 View Student — [view_student.php](admin/view_student.php)
+- **Progress Across Semesters:** GPA and CGPA for every semester as a trend chart (once two semesters have grades) and a table with the average, subjects graded and the change from the previous semester.
 - Profile, plus results for **every semester**: semester, subject, four marks ("—" if not assessed), total, and status.
 
 ### 5.7 Staff — [manage_lecturers.php](admin/manage_lecturers.php)
@@ -218,6 +230,7 @@ Sidebar: Dashboard · Enter Marks · CSV Upload · Audit Trail · Contact Admin 
 ### 6.1 Dashboard — [lecturer_dashboard.php](lecturer/lecturer_dashboard.php)
 - **Stats** for the lecturer's active subjects and enrolled students this semester: total, passing, at risk, failing.
 - **Mid-semester early warnings:** students whose final exam isn't marked yet and whose marks so far raise a flag, most serious first, with the projected total, the final-exam score needed to pass, and the reasons in plain words (attendance below 80% / BE, a final-exam target above 75%, a projection below 60%, assignment or midterm 1+ standard deviations below the class average).
+- **Email the warning:** each flagged student has an **Email** button ("Email again" once told) and **Email all not yet told** sends to students never emailed or now Critical, up to 15 per click. The email goes to the student's registered address with the reasons, projected total, final-exam score needed and links to mentoring and their dashboard. The list shows who was told and when. Without mail settings the buttons are hidden and the page says so.
 - **Learning outcome attainment & CQI:** for each subject, the share of assessed students attaining each CLO against the KPI. A CLO below the KPI is marked "CQI required"; the lecturer records a root cause and remedial plan (one per CLO per semester, editable, audited).
 - **Mentorship:**
   - Pending requests: **Approve**, **Reschedule**, **Decline**.
@@ -232,6 +245,7 @@ Sidebar: Dashboard · Enter Marks · CSV Upload · Audit Trail · Contact Admin 
 - Only the lecturer's own active subjects; any other `subject_id` is refused.
 - The grid lists the **students enrolled** this semester, with filter tabs by academic level.
 - Four mark inputs per student. **Blank = not assessed yet.** The total and status pill appear once all four marks are entered.
+- The header shows the subject's **weights** this semester and a **Results CSV** download for the subject ([lecturer/export.php](lecturer/export.php); only subjects the lecturer teaches this semester).
 - Clear notices when no semester is active or no students are enrolled.
 
 ### 6.3 Save Marks — [actions/save_marks.php](actions/save_marks.php)
@@ -269,12 +283,14 @@ Sidebar: Dashboard · What-If Calculator · Mentorship · My Transcript · Conta
 ### 7.1 Dashboard — [student_dashboard.php](student/student_dashboard.php)
 - **Profile card** and **stat tiles:** subjects, average, best and lowest score. Only graded subjects count; a real 0 counts; "—" if none are graded.
 - **Results for the active semester:** every enrolled subject, marks so far ("—" if not assessed), an animated total bar, and the status (Pending until complete, with the projected total underneath). Each subject shows its CLO pills: attained ✓, not attained ✗, or not assessed yet.
+- **My Progress Across Semesters:** GPA and CGPA per semester (trend chart once two semesters have grades), average score, subjects graded and the change from the previous semester ([includes/progress.php](includes/progress.php), the same rules as the transcript).
+- Each mark shows the subject's weight for it (e.g. ×40%).
 - **Programme Learning Outcomes:** radar chart of the student's cumulative score on each PLO against its target.
 - **Mid-semester outlook:** for each subject without a final-exam mark, the projected total, the final-exam score needed to pass, and the reasons for any warning, with a link to book mentorship.
 
 ### 7.2 What-If Calculator — [predict.php](student/predict.php)
 - Lists only the student's own **enrolled, active** subjects this semester.
-- The official assignment, midterm and attendance marks for this semester load and are locked.
+- The official assignment, midterm and attendance marks for this semester load and are locked, together with the **subject's weights**, so the calculator matches the official total.
 - Try final-exam values to see:
   - the projected total, bar, status, advice and weighted breakdown
   - the **minimum final-exam score needed to pass**
@@ -334,6 +350,11 @@ Sidebar: Dashboard · What-If Calculator · Mentorship · My Transcript · Conta
 
 ### One-time setup scripts (`tools/`)
 `create_admin.php`, `create_lecturer.php` and `add_subject_data.php` each lock themselves once data exists. The default accounts they create must change their password at first login.
+
+`seed_demo_history.php` (command line only, never from a browser) adds two past semesters named "Demo — …" with generated marks for every student, so progress trends, early-warning history and the accuracy page have data to show. `--remove` deletes them with their enrolments and marks.
+
+### Automated tests (`tests/`)
+End-to-end suites run against a local copy (`python tests/run_all.py`): every page per role, Contact Admin and account recovery, assessment weights, early-warning emails (through a local fake mail server), and CSV exports. See [tests/README.md](tests/README.md). The folder is blocked from the web.
 
 ---
 

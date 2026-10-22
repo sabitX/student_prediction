@@ -18,6 +18,8 @@ $active_semester = h(get_active_semester_name($conn));
 require '../includes/mentorship.php';
 require '../includes/marks.php';
 require '../includes/early_warning.php';
+require_once '../includes/mailer.php';
+require_once '../includes/audit.php';
 require '../includes/obe.php';
 
 $semester_id = get_active_semester_id($conn);
@@ -106,6 +108,50 @@ $roster = array_values(array_filter(early_warnings($conn, $semester_id, 'lecture
     fn($ew) => !$ew['analysis']['final_marked'] && $ew['analysis']['level'] !== 'ok'));
 usort($roster, fn($x, $y) => [$x['analysis']['level'] !== 'critical', $x['analysis']['projected']]
                          <=> [$y['analysis']['level'] !== 'critical', $y['analysis']['projected']]);
+
+// ── SECURE POST: email flagged students (includes/early_warning.php) ──────
+// Only students on this lecturer's own roster above can be emailed: the
+// posted enrolment is looked up in it, never trusted. "Email all" sends to
+// students not yet told (or now more serious), at most EW_EMAIL_BATCH per
+// click so the page never times out on a large class.
+const EW_EMAIL_BATCH = 15;
+if ((isset($_POST['ew_notify']) || isset($_POST['ew_notify_all'])) && csrf_verify()) {
+    if (!mail_is_configured()) {
+        $_SESSION['dashboard_flash'] = ['ok' => false, 'msg' => "Email isn't set up on this server, so nothing was sent."];
+    } else {
+        $by_enrolment = array_column($roster, null, 'enrollment_id');
+        if (isset($_POST['ew_notify'])) {
+            $targets = isset($by_enrolment[(int)$_POST['ew_notify']]) ? [$by_enrolment[(int)$_POST['ew_notify']]] : [];
+        } else {
+            $targets = array_values(array_filter($roster, 'ew_needs_notice'));
+        }
+        $left_over = max(0, count($targets) - EW_EMAIL_BATCH);
+        $targets   = array_slice($targets, 0, EW_EMAIL_BATCH);
+        $sent = $failed = [];
+        $sem_name = get_active_semester_name($conn);
+        foreach ($targets as $ew) {
+            if (ew_send_notice($conn, $ew, (int)$user_id, $full_name, $sem_name)) {
+                $sent[] = "{$ew['full_name']} ({$ew['subject_code']})";
+            } else {
+                $failed[] = $ew['full_name'];
+            }
+        }
+        if ($sent) {
+            audit_log($conn, 'Early warning emailed', implode('; ', $sent));
+        }
+        if (!$targets) {
+            $msg = isset($_POST['ew_notify']) ? "That student isn't on your early-warning list any more." : "Everyone flagged has already been emailed.";
+        } else {
+            $msg = count($sent) . " early-warning email" . (count($sent) === 1 ? '' : 's') . " sent."
+                 . ($failed ? " Could not send to: " . implode(', ', $failed) . "." : '')
+                 . ($left_over ? " $left_over more still to email — click Email all again." : '');
+        }
+        $_SESSION['dashboard_flash'] = ['ok' => $sent && !$failed, 'msg' => $msg];
+    }
+    header("Location: lecturer_dashboard.php#early-warnings");
+    exit();
+}
+$ew_unsent = count(array_filter($roster, 'ew_needs_notice'));
 
 // ── CLO attainment per subject this semester, with CQI flags ───────────────
 $stmt_my_subs = mysqli_prepare($conn, "SELECT sub.id, sub.subject_code, sub.subject_name
@@ -235,17 +281,30 @@ require '../includes/page_start.php';
         </div>
 
         <!-- Mid-Semester Early-Warning Roster -->
-        <div class="dashboard-card">
-            <div class="card-header-title">
-                <i class="bi bi-binoculars text-primary"></i>Mid-Semester Early Warnings
-                <?php if ($roster): ?>
-                    <span class="badge bg-warning text-dark ms-2" style="font-size:0.75rem;"><?php echo count($roster); ?> flagged</span>
+        <div class="dashboard-card" id="early-warnings">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div class="card-header-title">
+                    <i class="bi bi-binoculars text-primary"></i>Mid-Semester Early Warnings
+                    <?php if ($roster): ?>
+                        <span class="badge bg-warning text-dark ms-2" style="font-size:0.75rem;"><?php echo count($roster); ?> flagged</span>
+                    <?php endif; ?>
+                </div>
+                <?php if ($roster && mail_is_configured()): ?>
+                    <form method="POST" onsubmit="return confirm(<?php echo h(json_encode("Email an early warning to $ew_unsent student" . ($ew_unsent === 1 ? '' : 's') . " who haven't been told yet (or whose risk is now critical)?")); ?>);">
+                        <?php echo csrf_field(); ?>
+                        <button type="submit" name="ew_notify_all" value="1" class="btn btn-sm btn-primary-custom" <?php echo $ew_unsent ? '' : 'disabled'; ?>>
+                            <i class="bi bi-envelope me-1"></i>Email all not yet told (<?php echo $ew_unsent; ?>)
+                        </button>
+                    </form>
                 <?php endif; ?>
             </div>
             <p class="text-muted" style="font-size:0.82rem; margin-top:-8px;">
                 Students whose final exam isn't marked yet and whose marks so far point to trouble.
                 Projections blend the coursework marked so far with the student's earlier results
                 (or the class average for new students).
+                <?php if ($roster && !mail_is_configured()): ?>
+                    <br><i class="bi bi-envelope-exclamation me-1"></i>Email isn't set up on this server, so warnings can't be emailed; students still see them on their dashboard.
+                <?php endif; ?>
             </p>
             <?php if ($roster): ?>
             <div class="table-responsive">
@@ -258,6 +317,7 @@ require '../includes/page_start.php';
                         <th class="text-center">Projected</th>
                         <th class="text-center">Final needed</th>
                         <th>Why</th>
+                        <th class="text-center">Student told</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -277,6 +337,22 @@ require '../includes/page_start.php';
                         </td>
                         <td class="text-center"><?php echo $a['min_final'] === null ? '—' : ($a['min_final'] > 100 ? 'over 100%' : ew_pct($a['min_final'])); ?></td>
                         <td style="min-width:260px;"><?php echo render_risk_reasons($a['reasons']); ?></td>
+                        <td class="text-center text-nowrap" style="font-size:0.78rem;">
+                            <?php if ($ew['notified_at']): ?>
+                                <span class="text-success" title="Emailed at the <?php echo h($ew['notified_level']); ?> level"><i class="bi bi-envelope-check me-1"></i><?php echo date('d M', strtotime($ew['notified_at'])); ?></span><br>
+                            <?php else: ?>
+                                <span class="text-muted">Not yet</span><br>
+                            <?php endif; ?>
+                            <?php if (mail_is_configured()): ?>
+                            <form method="POST" class="d-inline">
+                                <?php echo csrf_field(); ?>
+                                <button type="submit" name="ew_notify" value="<?php echo (int)$ew['enrollment_id']; ?>" class="btn btn-link btn-sm p-0" style="font-size:0.78rem;"
+                                        onclick="return confirm(<?php echo h(json_encode('Email this early warning to ' . $ew['full_name'] . ' (' . $ew['email'] . ')?')); ?>);">
+                                    <?php echo $ew['notified_at'] ? 'Email again' : 'Email'; ?>
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>

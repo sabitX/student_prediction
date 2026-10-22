@@ -8,3 +8,8 @@ config/env.php
 Thumbs.db
 .vscode/
 .idea/
+
+# Files the tests create while running
+tests/sink.txt
+tests/env.php.bak
+tests/__pycache__/

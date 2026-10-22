@@ -9,6 +9,16 @@
 // send_mail() returns true when the server accepted the message. It never
 // throws: callers fall back to showing the information to the admin.
 
+// Full link to a page of the app for emails, e.g. app_url('/auth/login.php'):
+// APP_URL from env.php if set, otherwise worked out from this request.
+function app_url($path) {
+    if (setting('APP_URL') !== null) {
+        return rtrim(setting('APP_URL'), '/') . $path;
+    }
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https' ? 'https' : 'http';
+    return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . app_base_path() . $path;
+}
+
 function mail_is_configured() {
     return setting('MAIL_HOST') !== null && setting('MAIL_FROM') !== null;
 }

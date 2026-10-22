@@ -400,6 +400,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
             </div>
 
+            <p class="text-muted text-center mb-2" style="font-size:0.75rem;"><i class="bi bi-shield-check me-1"></i>How we use these details: <a href="privacy.php" class="link-custom">Privacy notice</a></p>
             <button type="submit" class="btn btn-primary-custom w-100">
                 <i class="bi bi-person-plus me-2"></i>Create Account
             </button>

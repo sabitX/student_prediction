@@ -23,7 +23,7 @@ You are helping me write the **Final Year Project report** for my Diploma comput
 SPTS is a role-based web application. It lets lecturers record student assessment marks, computes a weighted total score for each student, and classifies each student's academic standing, so that at-risk students can be identified and supported early.
 
 - **Weighted Scoring Model:**
-  - Total = Assignment × 20% + Midterm × 30% + Final Exam × 40% + Attendance × 10%
+  - Total = Assignment × A% + Midterm × M% + Final Exam × F% + Attendance × T%, with each subject's own weights per semester (default 20/30/40/10)
   - Standing: ≥ 80 **Excellent**, ≥ 60 **Pass**, ≥ 50 **At Risk**, < 50 **Fail**
 - **Marks can be entered progressively.** A blank component means "not assessed yet" (stored as NULL). The standing is computed only when all four components exist; until then it shows *Pending*.
 - **Three roles:** Administrator, Lecturer, Student. A student can also be made a **peer mentor**.

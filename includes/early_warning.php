@@ -11,7 +11,8 @@
 //   current   = weighted average of the components marked so far (the view)
 //   prior     = the student's average total in earlier semesters, or this
 //               class's current average for a student with no history
-//   alpha     = coursework weight marked so far ÷ 0.60 (all coursework)
+//   alpha     = coursework weight marked so far ÷ all coursework weight
+//               (everything but the final exam; 0.60 with default weights)
 //   projected = alpha × current + (1 − alpha) × prior
 // Early on (little marked) the projection leans on the prior; once all
 // coursework is in it is the student's own coursework average. This is a
@@ -25,9 +26,10 @@ const HIGH_FINAL_TARGET = 75;    // needing more than this in the final is flagg
 const Z_FLAG            = -1.0;  // this many standard deviations below the class average is flagged
 const COHORT_MIN_SIZE   = 5;     // fewer marked students: no class comparison
 
-// Weight of all coursework (everything except the final exam): 0.60.
-function coursework_weight_total() {
-    return 1 - MARK_WEIGHTS['final_exam'];
+// Weight of all coursework (everything except the final exam) for a row's
+// subject and semester: 0.60 with the default weights.
+function coursework_weight_total(array $row) {
+    return 1 - row_weights($row)['final_exam'];
 }
 
 // Class averages and spread for one subject in one semester (cached).
@@ -93,7 +95,7 @@ function ew_analyse(array $row, $prior, array $cohort) {
         $alpha     = 1.0;
         $projected = $current;   // = the official total once all four are in
     } else {
-        $alpha     = min(1.0, (float)$row['assessed_weight'] / coursework_weight_total());
+        $alpha     = min(1.0, (float)$row['assessed_weight'] / coursework_weight_total($row));
         $projected = $prior === null ? $current : $alpha * $current + (1 - $alpha) * $prior;
     }
     $projected = round($projected, 2);
@@ -143,24 +145,32 @@ function ew_analyse(array $row, $prior, array $cohort) {
     ];
 }
 
-// Early-warning rows for one semester, analysed, for either one student
-// ($by = 'student', $id = students.id) or every student in one lecturer's
-// subjects ($by = 'lecturer', $id = users.id). Archived subjects are left out.
+// Early-warning rows for one semester, analysed, for one student
+// ($by = 'student', $id = students.id), every student in one lecturer's
+// subjects ($by = 'lecturer', $id = users.id) or everyone ($by = 'all', for
+// admin exports; $id is ignored). Archived subjects are left out.
 function early_warnings($conn, $semester_id, $by, $id) {
-    $scope = $by === 'lecturer'
-        ? "JOIN lecturer_subjects ls ON ls.subject_id = r.subject_id AND ls.semester_id = r.semester_id AND ls.user_id = ?"
-        : "AND r.student_id = ?";
-    $sql = "SELECT r.*, sub.subject_code, sub.subject_name, s.student_id AS student_code, u.full_name
+    $scope = match ($by) {
+        'lecturer' => "JOIN lecturer_subjects ls ON ls.subject_id = r.subject_id AND ls.semester_id = r.semester_id AND ls.user_id = ?",
+        'all'      => "",
+        default    => "AND r.student_id = ?",
+    };
+    $sql = "SELECT r.*, sub.subject_code, sub.subject_name, s.student_id AS student_code, u.full_name, u.email,
+                   en.id AS enrollment_id, n.risk_level AS notified_level, n.sent_at AS notified_at
             FROM early_risk_predictions r
             JOIN subjects sub ON sub.id = r.subject_id AND sub.is_archived = 0
             JOIN students s ON s.id = r.student_id
             JOIN users u ON u.id = s.user_id
+            JOIN student_enrollments en ON en.student_id = r.student_id AND en.subject_id = r.subject_id AND en.semester_id = r.semester_id
+            LEFT JOIN early_warning_notices n ON n.enrollment_id = en.id
             " . ($by === 'lecturer' ? $scope : '') . "
             WHERE r.semester_id = ? " . ($by === 'lecturer' ? '' : $scope) . "
             ORDER BY sub.subject_code, u.full_name";
     $stmt = mysqli_prepare($conn, $sql);
     if ($by === 'lecturer') {
         mysqli_stmt_bind_param($stmt, "ii", $id, $semester_id);
+    } elseif ($by === 'all') {
+        mysqli_stmt_bind_param($stmt, "i", $semester_id);
     } else {
         mysqli_stmt_bind_param($stmt, "ii", $semester_id, $id);
     }
@@ -175,6 +185,54 @@ function early_warnings($conn, $semester_id, $by, $id) {
     }
     unset($row);
     return $rows;
+}
+
+// ── Emailing a flagged student ──────────────────────────────────────────
+// A lecturer sends this from their dashboard (early_warning_notices,
+// migration 013). It goes to the student's registered email and explains
+// the warning in the same words as the dashboard. Returns true only when
+// the mail server accepted it; only then is it recorded.
+function ew_send_notice($conn, array $ew, $lecturer_id, $lecturer_name, $semester_name) {
+    require_once __DIR__ . '/mailer.php';
+    $a = $ew['analysis'];
+    if ($a['level'] === 'ok' || $a['final_marked']) {
+        return false;
+    }
+    $lines = [];
+    foreach ($a['reasons'] as $r) {
+        $lines[] = '  - ' . $r['text'];
+    }
+    $body = "Hello {$ew['full_name']},\n\n"
+          . "Your lecturer, $lecturer_name, is letting you know that your marks so far in "
+          . "{$ew['subject_code']} {$ew['subject_name']} ($semester_name) point to a risk of not passing:\n\n"
+          . implode("\n", $lines) . "\n\n"
+          . "Projected total: " . ew_pct($a['projected']) . " (pass mark " . PASS_MARK . "%).\n"
+          . ($a['min_final'] !== null && $a['min_final'] <= 100 ? "Final exam score you need to pass: " . ew_pct($a['min_final']) . ".\n" : '')
+          . ($a['min_final'] !== null && $a['min_final'] > 100
+                ? "\nEven full marks in the final exam would not reach the pass mark, so please talk to your lecturer now about your options.\n"
+                : "\nThis is an early warning, not a result: there is still time to change it.\n")
+          . "  - Talk to your lecturer about the areas to work on.\n"
+          . "  - Book a mentoring session: " . app_url('/student/mentorship.php') . "\n"
+          . "  - See your outlook for every subject: " . app_url('/student/student_dashboard.php') . "\n\n"
+          . "— SPTS, Nilai University";
+    $level = $a['level'] === 'critical' ? 'critical' : 'warning';
+    $subject = ($level === 'critical' ? 'Urgent: ' : '') . "Early warning for {$ew['subject_code']} — {$ew['subject_name']}";
+    if (!send_mail($ew['email'], $ew['full_name'], $subject, $body)) {
+        return false;
+    }
+    $stmt = mysqli_prepare($conn, "INSERT INTO early_warning_notices (enrollment_id, risk_level, sent_at, sent_by) VALUES (?, ?, NOW(), ?)
+                                   ON DUPLICATE KEY UPDATE risk_level = VALUES(risk_level), sent_at = VALUES(sent_at), sent_by = VALUES(sent_by)");
+    mysqli_stmt_bind_param($stmt, "isi", $ew['enrollment_id'], $level, $lecturer_id);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    return true;
+}
+
+// Whether "email all" should include this flagged row: never emailed, or
+// it has become more serious (warning → critical) since the last email.
+function ew_needs_notice(array $ew) {
+    return $ew['notified_level'] === null
+        || ($ew['analysis']['level'] === 'critical' && $ew['notified_level'] !== 'critical');
 }
 
 // ── Backtest: how well would the early warning have done? ───────────────
@@ -195,9 +253,10 @@ const BACKTEST_CHECKPOINTS = [
 
 function ew_backtest($conn) {
     $rows = mysqli_fetch_all(mysqli_query($conn,
-        "SELECT e.student_id, e.subject_id, e.semester_id, p.assignment, p.midterm, p.final_exam, p.attendance, pr.total_score
+        "SELECT e.student_id, e.subject_id, e.semester_id, p.assignment, p.midterm, p.final_exam, p.attendance, pr.total_score, " . WEIGHTS_COLS . "
          FROM performance p
          JOIN student_enrollments e ON e.id = p.enrollment_id
+         " . WEIGHTS_JOIN . "
          JOIN predictions pr ON pr.student_id = e.student_id AND pr.subject_id = e.subject_id AND pr.semester_id = e.semester_id"),
         MYSQLI_ASSOC);
 
@@ -209,19 +268,21 @@ function ew_backtest($conn) {
 
     $out = [];
     foreach (BACKTEST_CHECKPOINTS as $key => $cp) {
-        $weight = array_sum(array_map(fn($c) => MARK_WEIGHTS[$c], $cp['known']));
-        // Replayed rows: unknown components blanked, scores recomputed.
+        // Replayed rows: unknown components blanked, scores recomputed
+        // with that subject's weights for that semester.
         $replay = [];
         foreach ($rows as $r) {
+            $weights = row_weights($r);
+            $weight  = array_sum(array_map(fn($c) => $weights[$c], $cp['known']));
             $x = $r;
-            foreach (MARK_WEIGHTS as $c => $w) {
+            foreach ($weights as $c => $w) {
                 if (!in_array($c, $cp['known'], true)) $x[$c] = null;
             }
             $points = 0.0;
-            foreach ($cp['known'] as $c) $points += (float)$r[$c] * MARK_WEIGHTS[$c];
+            foreach ($cp['known'] as $c) $points += (float)$r[$c] * $weights[$c];
             $x['assessed_weight']   = $weight;
             $x['current_score']     = round($points / $weight, 2);
-            $x['min_final_to_pass'] = count($cp['known']) === 3 ? max(0, round((PASS_MARK - $points) / MARK_WEIGHTS['final_exam'], 2)) : null;
+            $x['min_final_to_pass'] = count($cp['known']) === 3 ? max(0, round((PASS_MARK - $points) / $weights['final_exam'], 2)) : null;
             $replay[] = $x;
         }
         // Class statistics per subject and semester at this checkpoint.

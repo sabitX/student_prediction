@@ -8,8 +8,8 @@
 //   clo_assessments  which CLO each mark component assesses
 //   cqi_actions      a lecturer's response to a CLO that missed its KPI
 //
-// A student's CLO score is the weighted average (MARK_WEIGHTS) of the
-// components mapped to it; they attain the CLO when it reaches the PLO's
+// A student's CLO score is the weighted average of the components mapped
+// to it, using that subject's weights for that semester (row_weights()); they attain the CLO when it reaches the PLO's
 // target. A CLO is only scored once all its components are marked.
 
 require_once __DIR__ . '/grading.php';
@@ -93,12 +93,11 @@ function obe_subject_outcomes($conn, array $subject_ids) {
                 'clo_description' => $r['clo_description'], 'bloom_level' => $r['bloom_level'],
                 'plo_id' => (int)$r['plo_id'], 'plo_code' => $r['plo_code'], 'plo_title' => $r['plo_title'],
                 'threshold' => (float)$r['target_threshold'], 'kpi' => (float)$r['cohort_kpi_pct'],
-                'components' => [], 'weight' => 0.0,
+                'components' => [],
             ];
         }
         if ($r['component'] !== null) {
             $out[$sid][$cid]['components'][] = $r['component'];
-            $out[$sid][$cid]['weight']      += MARK_WEIGHTS[$r['component']];
         }
     }
     mysqli_stmt_close($stmt);
@@ -112,14 +111,21 @@ function obe_clo_score(array $marks, array $clo) {
     if (!$clo['components']) {
         return null;
     }
+    $weights = row_weights($marks);
     $sum = 0.0;
     foreach ($clo['components'] as $component) {
         if (($marks[$component] ?? null) === null) {
             return null;
         }
-        $sum += (float)$marks[$component] * MARK_WEIGHTS[$component];
+        $sum += (float)$marks[$component] * $weights[$component];
     }
-    return round($sum / $clo['weight'], 2);
+    return round($sum / obe_clo_weight($marks, $clo), 2);
+}
+
+// The total weight of a CLO's components for that row's subject/semester.
+function obe_clo_weight(array $marks, array $clo) {
+    $weights = row_weights($marks);
+    return array_sum(array_map(fn($c) => $weights[$c], $clo['components']));
 }
 
 // "CLO1 Understand (C2) · PLO1" style labels for tooltips.
@@ -132,8 +138,9 @@ function obe_clo_label(array $clo) {
 // [plo_id => plo + ['score' => weighted average of their CLO scores
 // (null if none yet), 'attained' => bool|null, 'clos' => count]].
 function obe_student_plo($conn, $student_db_id) {
-    $stmt = mysqli_prepare($conn, "SELECT e.subject_id, p.assignment, p.midterm, p.final_exam, p.attendance
-                                   FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id WHERE e.student_id = ?");
+    $stmt = mysqli_prepare($conn, "SELECT e.subject_id, p.assignment, p.midterm, p.final_exam, p.attendance, " . WEIGHTS_COLS . "
+                                   FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id " . WEIGHTS_JOIN . "
+                                   WHERE e.student_id = ?");
     mysqli_stmt_bind_param($stmt, "i", $student_db_id);
     mysqli_stmt_execute($stmt);
     $rows = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
@@ -145,8 +152,9 @@ function obe_student_plo($conn, $student_db_id) {
         foreach ($outcomes[(int)$row['subject_id']] ?? [] as $clo) {
             $score = obe_clo_score($row, $clo);
             if ($score === null) continue;
-            $sum[$clo['plo_id']]   = ($sum[$clo['plo_id']] ?? 0) + $score * $clo['weight'];
-            $wt[$clo['plo_id']]    = ($wt[$clo['plo_id']] ?? 0) + $clo['weight'];
+            $weight = obe_clo_weight($row, $clo);
+            $sum[$clo['plo_id']]   = ($sum[$clo['plo_id']] ?? 0) + $score * $weight;
+            $wt[$clo['plo_id']]    = ($wt[$clo['plo_id']] ?? 0) + $weight;
             $count[$clo['plo_id']] = ($count[$clo['plo_id']] ?? 0) + 1;
         }
     }
@@ -170,8 +178,8 @@ function obe_cohort_clo($conn, $subject_id, $semester_id) {
     if (!$clos) {
         return [];
     }
-    $stmt = mysqli_prepare($conn, "SELECT p.assignment, p.midterm, p.final_exam, p.attendance
-                                   FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id
+    $stmt = mysqli_prepare($conn, "SELECT p.assignment, p.midterm, p.final_exam, p.attendance, " . WEIGHTS_COLS . "
+                                   FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id " . WEIGHTS_JOIN . "
                                    WHERE e.subject_id = ? AND e.semester_id = ?");
     mysqli_stmt_bind_param($stmt, "ii", $subject_id, $semester_id);
     mysqli_stmt_execute($stmt);
@@ -212,9 +220,10 @@ function obe_cohort_clo($conn, $subject_id, $semester_id) {
 // results (active subjects) that met the PLO's target.
 // [plo_id => plo + ['results', 'attained', 'pct' (null if none)]].
 function obe_institution_plo($conn, $semester_id) {
-    $stmt = mysqli_prepare($conn, "SELECT e.subject_id, p.assignment, p.midterm, p.final_exam, p.attendance
+    $stmt = mysqli_prepare($conn, "SELECT e.subject_id, p.assignment, p.midterm, p.final_exam, p.attendance, " . WEIGHTS_COLS . "
                                    FROM performance p
                                    JOIN student_enrollments e ON e.id = p.enrollment_id
+                                   " . WEIGHTS_JOIN . "
                                    JOIN subjects sub ON sub.id = e.subject_id AND sub.is_archived = 0
                                    WHERE e.semester_id = ?");
     mysqli_stmt_bind_param($stmt, "i", $semester_id);

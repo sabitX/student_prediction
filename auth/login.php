@@ -389,7 +389,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         <div class="text-center mt-3">
             <small class="text-muted" style="font-size: 0.7rem;">
-                &copy; 2026 Student Performance Tracking System<br>Nilai University
+                &copy; 2026 Student Performance Tracking System<br>Nilai University<br><a href="privacy.php" class="link-custom" style="font-weight:500;">Privacy notice</a>
             </small>
         </div>
 

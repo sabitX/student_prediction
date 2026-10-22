@@ -538,8 +538,8 @@ unset($env_settings);
                     </div>
                     <h5>Weighted Score Computed</h5>
                     <p>
-                        The system instantly applies the Weighted Scoring Model —
-                        Assignment 20%, Midterm 30%, Final 40%, Attendance 10% —
+                        The system instantly applies each subject's own weights for
+                        assignment, midterm, final exam and attendance (20/30/40/10 by default)
                         and classifies each student as Excellent, Pass, At Risk, or Fail.
                     </p>
                 </div>
@@ -634,7 +634,7 @@ unset($env_settings);
             Student Performance Tracking Web System Using Weighted Scoring Model
         </p>
         <p class="footer-copy mb-0">
-            © 2026 Nilai University — Department of Computing and Data Sciences — EC2320 Summative Project
+            © 2026 Nilai University — Department of Computing and Data Sciences — EC2320 Summative Project · <a href="auth/privacy.php" style="color:inherit; text-decoration:underline;">Privacy notice</a>
         </p>
     </div>
 </footer>

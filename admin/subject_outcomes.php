@@ -12,10 +12,12 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     exit();
 }
 
-// ── One subject's learning outcomes (CLO1–CLO4) ────────────────────────
-// The admin words each CLO, tags its Bloom's level and PLO, and chooses
-// which CLO each mark component assesses. Attainment is then calculated
-// from the marks lecturers already enter (includes/obe.php).
+// ── One subject's assessment weights and learning outcomes ──────────────
+// The admin sets how much each mark component counts this semester
+// (subject_weights; earlier semesters keep theirs, so published results
+// never change), words each CLO, tags its Bloom's level and PLO, and
+// chooses which CLO each mark component assesses. Attainment is then
+// calculated from the marks lecturers already enter (includes/obe.php).
 
 $error   = "";
 require_once '../includes/flash.php';
@@ -40,8 +42,26 @@ if (!obe_subject_outcomes($conn, [$subject_id])) {
 }
 $plos = obe_plos($conn);
 
+$semester_id = get_active_semester_id($conn);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     $error = "Your session expired or the request could not be verified. Please try again.";
+
+// ── Assessment weights for the active semester ─────────────────────────
+} elseif (isset($_POST['save_weights'])) {
+    $posted = is_array($_POST['weight'] ?? null) ? $_POST['weight'] : [];
+    if (!$semester_id) {
+        $error = "Set an active semester first; weights are set per semester.";
+    } else {
+        $before = subject_weights($conn, $subject_id, $semester_id);
+        $error  = save_subject_weights($conn, $subject_id, $semester_id, $posted);
+        if (!$error) {
+            $after = subject_weights($conn, $subject_id, $semester_id);
+            audit_log($conn, 'Assessment weights changed', "Subject: {$subject['subject_code']} | Semester: " . get_active_semester_name($conn)
+                . " | " . weights_label($before) . " → " . weights_label($after));
+            $success = "Weights for {$subject['subject_code']} saved. This semester's totals and statuses now use them.";
+        }
+    }
 
 } elseif (isset($_POST['save_outcomes'])) {
     $clos   = obe_subject_outcomes($conn, [$subject_id])[$subject_id];
@@ -133,7 +153,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 
 redirect_after_success($success, $error);
 
-$semester_id = get_active_semester_id($conn);
+$weights = subject_weights($conn, $subject_id, $semester_id);
+// Typed values are kept when saving them failed.
+$weight_inputs = [];
+foreach ($weights as $component => $w) {
+    $weight_inputs[$component] = isset($_POST['save_weights']) && is_scalar($_POST['weight'][$component] ?? null)
+        ? (string)$_POST['weight'][$component] : rtrim(rtrim(number_format($w * 100, 2, '.', ''), '0'), '.');
+}
+$stmt = mysqli_prepare($conn, "SELECT COUNT(*) FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id
+                               WHERE e.subject_id = ? AND e.semester_id = ? AND p.final_exam IS NOT NULL");
+mysqli_stmt_bind_param($stmt, "ii", $subject_id, $semester_id);
+mysqli_stmt_execute($stmt);
+$finished_results = (int)mysqli_fetch_row(mysqli_stmt_get_result($stmt))[0];
+mysqli_stmt_close($stmt);
 $clos        = obe_cohort_clo($conn, $subject_id, $semester_id);
 $component_clo = [];
 foreach ($clos as $clo) {
@@ -141,7 +173,7 @@ foreach ($clos as $clo) {
 }
 ?>
 <?php
-$page_title = 'Learning Outcomes — ' . $subject['subject_code'];
+$page_title = 'Assessment & Outcomes — ' . $subject['subject_code'];
 $page_styles = <<<'CSS'
         .container { position: relative; z-index: 100; }
         .form-control, .form-select { background: #F8FAFC; border: 1px solid #E2E8F0; font-size: 0.88rem; border-radius: 8px; }
@@ -152,10 +184,44 @@ require '../includes/page_start.php';
     <div class="container mb-5" style="max-width:100%; margin-left:0;">
     <div class="page-header">
         <div>
-            <h2><?php echo h($subject['subject_code']); ?> Learning Outcomes</h2>
+            <h2><?php echo h($subject['subject_code']); ?> Assessment &amp; Outcomes</h2>
             <p><?php echo h($subject['subject_name']); ?> · <?php echo h(number_format((float)$subject['credit_hours'], 1)); ?> credit hours</p>
         </div>
         <a href="manage_subjects.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Subjects</a>
+    </div>
+
+    <div class="dashboard-card">
+        <div class="card-header-title"><i class="bi bi-sliders text-primary"></i>Assessment Weights — <?php echo h(get_active_semester_name($conn)); ?></div>
+        <?php if (!$semester_id): ?>
+            <p class="text-muted mb-0" style="font-size:0.88rem;">Set an active semester first; weights are set per semester.</p>
+        <?php else: ?>
+        <p class="text-muted" style="font-size:0.82rem;">
+            How much each mark counts towards this subject's total this semester. Each must be <?php echo WEIGHT_MIN; ?>–<?php echo WEIGHT_MAX; ?>% and together 100%.
+            Earlier semesters keep the weights they used, so published results never change. A new semester starts with these.
+        </p>
+        <form method="POST" id="weightsForm">
+            <?php echo csrf_field(); ?>
+            <div class="row g-3 align-items-end">
+                <?php foreach (MARK_FIELDS as $component => $label): ?>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label" for="weight_<?php echo $component; ?>"><?php echo h($label); ?></label>
+                    <div class="input-group">
+                        <input type="number" name="weight[<?php echo $component; ?>]" id="weight_<?php echo $component; ?>" class="form-control weight-input"
+                               min="<?php echo WEIGHT_MIN; ?>" max="<?php echo WEIGHT_MAX; ?>" step="0.01" required value="<?php echo h($weight_inputs[$component]); ?>">
+                        <span class="input-group-text">%</span>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+                <div class="col-md-12 col-xl-4 d-flex align-items-center gap-3 flex-wrap">
+                    <span style="font-size:0.88rem;">Total: <strong id="weightTotal">100%</strong></span>
+                    <button type="submit" name="save_weights" class="btn btn-primary-custom"
+                            <?php if ($finished_results): ?>onclick="return confirm(<?php echo h(json_encode("$finished_results student" . ($finished_results === 1 ? ' has' : 's have') . " a final exam mark in this subject this semester. Their totals and statuses will be recalculated. Continue?")); ?>);"<?php endif; ?>>
+                        <i class="bi bi-check-lg me-1"></i>Save Weights
+                    </button>
+                </div>
+            </div>
+        </form>
+        <?php endif; ?>
     </div>
 
     <form method="POST">
@@ -228,7 +294,7 @@ require '../includes/page_start.php';
                     <?php foreach (MARK_FIELDS as $component => $label): ?>
                     <div class="row g-2 align-items-center mb-2">
                         <label class="col-6 form-label mb-0" for="map_<?php echo $component; ?>">
-                            <?php echo h($label); ?> <span class="text-muted fw-normal">(<?php echo MARK_WEIGHTS[$component] * 100; ?>%)</span>
+                            <?php echo h($label); ?> <span class="text-muted fw-normal">(<?php echo weight_pct($weights[$component]); ?>)</span>
                         </label>
                         <div class="col-6">
                             <select name="map[<?php echo $component; ?>]" id="map_<?php echo $component; ?>" class="form-select">
@@ -278,4 +344,25 @@ require '../includes/page_start.php';
     <!-- The PLO fields above belong to this form (form="ploForm"). -->
     <form method="POST" id="ploForm"><?php echo csrf_field(); ?></form>
     </div>
-<?php require '../includes/page_end.php'; ?>
+<?php
+$page_scripts = <<<'JS'
+<script>
+// Live total of the four weights (the server checks it too).
+(function () {
+    const inputs = document.querySelectorAll('.weight-input');
+    const out = document.getElementById('weightTotal');
+    if (!out) return;
+    function update() {
+        let sum = 0;
+        inputs.forEach(i => sum += parseFloat(i.value) || 0);
+        sum = Math.round(sum * 100) / 100;
+        out.textContent = sum + '%';
+        out.className = Math.abs(sum - 100) < 0.001 ? 'text-success' : 'text-danger';
+    }
+    inputs.forEach(i => i.addEventListener('input', update));
+    update();
+})();
+</script>
+JS;
+require '../includes/page_end.php';
+?>

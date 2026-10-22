@@ -4,6 +4,7 @@ require '../config/config.php';
 require '../includes/semester.php';
 require '../includes/grading.php';
 require '../includes/academic_level.php';
+require '../includes/progress.php';
 
 if ($_SESSION['role'] != 'admin') {
     header("Location: ../student/student_dashboard.php");
@@ -49,6 +50,9 @@ mysqli_stmt_bind_param($stmt_perf, "i", $id);
 mysqli_stmt_execute($stmt_perf);
 $perf_query = mysqli_stmt_get_result($stmt_perf);
 $perf_count = mysqli_num_rows($perf_query);
+
+// GPA and CGPA per semester (includes/progress.php).
+$history = student_semester_history($conn, $id);
 ?>
 <?php
 // Shared head, topbar and sidebar (includes/page_start.php); only this
@@ -109,6 +113,8 @@ require '../includes/page_start.php';
             </div>
         </div>
 
+        <?php render_progress_card($history, 'progressChart'); ?>
+
         <!-- Performance & Predictions -->
         <div class="dashboard-card p-0 overflow-hidden">
             <div class="p-4 border-bottom">
@@ -163,4 +169,8 @@ require '../includes/page_start.php';
             <?php endif; ?>
         </div>
 
-<?php require '../includes/page_end.php'; ?>
+<?php
+$page_scripts = ($progress_script = progress_chart_script($history, 'progressChart'))
+    ? '<script src="../assets/vendor/chartjs/chart.umd.min.js"></script>' . $progress_script : '';
+require '../includes/page_end.php';
+?>

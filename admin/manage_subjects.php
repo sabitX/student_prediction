@@ -383,7 +383,7 @@ require '../includes/page_start.php';
                                     <i class="bi bi-pencil-square me-1"></i>Edit
                                 </button>
                                 <a href="subject_outcomes.php?id=<?php echo (int)$row['id']; ?>" class="btn btn-sm btn-outline-secondary px-3 py-1 rounded-2 me-1" style="font-size:0.75rem;">
-                                    <i class="bi bi-diagram-3 me-1"></i>Outcomes
+                                    <i class="bi bi-sliders me-1"></i>Weights &amp; Outcomes
                                 </a>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('⚠️ This subject will be archived. All historical student records are preserved. Continue?');">
                                     <?php echo csrf_field(); ?>

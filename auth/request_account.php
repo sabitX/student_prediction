@@ -281,6 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <textarea name="message" id="message" class="form-control" rows="3" maxlength="500" placeholder="e.g. the subjects you'll be teaching this semester"><?php echo h($form['message']); ?></textarea>
                 </div>
 
+                <p class="text-muted text-center mb-2" style="font-size:0.75rem;"><i class="bi bi-shield-check me-1"></i>How we use these details: <a href="privacy.php" class="link-custom">Privacy notice</a></p>
                 <button type="submit" class="btn btn-primary-custom w-100 mt-2">
                     <i class="bi bi-send me-2"></i>Send Request
                 </button>

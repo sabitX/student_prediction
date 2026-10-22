@@ -28,7 +28,7 @@ Going live on a real server? Follow **DEPLOYMENT.md** (HTTPS, php.ini, backups, 
 
 ### Upgrading an existing install
 
-Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql`, `007_predictions_view_collation.sql`, `008_student_account_requests.sql`, `009_obe_and_early_warning.sql`, `010_normalization_review.sql` and `011_support_requests.sql`, each once, in that order, as MySQL `root` (004–010 create triggers, views and constraints). After that, do steps 5–6 above.
+Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql`, `007_predictions_view_collation.sql`, `008_student_account_requests.sql`, `009_obe_and_early_warning.sql`, `010_normalization_review.sql`, `011_support_requests.sql`, `012_subject_weights.sql` and `013_early_warning_notices.sql`, each once, in that order, as MySQL `root` (004–010 create triggers, views and constraints). After that, do steps 5–6 above.
 
 ---
 
@@ -58,7 +58,9 @@ The `tools/` scripts disable themselves once an admin, lecturer or subject exist
 
 ## PREDICTION FORMULA
 
-Total Score = (Assignment x 20%) + (Midterm x 30%) + (Final Exam x 40%) + (Attendance x 10%)
+Total Score = (Assignment x A%) + (Midterm x M%) + (Final Exam x F%) + (Attendance x T%)
+
+Each subject has its own weights for each semester (Subjects → Weights & Outcomes; 20/30/40/10 by default, each 5–80%, together 100%). Earlier semesters keep the weights they used, and a new semester starts with the previous one's.
 
 - \>= 80 : Excellent
 - \>= 60 : Pass
@@ -90,14 +92,16 @@ student_prediction/
 │                      academic_level.php, grading.php, marks.php, mentorship.php,
 │                      passwords.php, login_throttle.php, flash.php, no_student_profile.php,
 │                      support.php, support_page.php
-├── auth/              login, logout, register, contact_admin, change_password
+├── auth/              login, logout, register, contact_admin, privacy, change_password
 ├── admin/             admin_dashboard, manage_subjects, manage_enrollments, manage_students,
 │                      manage_lecturers (staff), manage_semesters, support_requests,
 │                      audit_logs, view_student
 ├── lecturer/          lecturer_dashboard, enter_marks, csv_upload, audit_trail, contact_admin
 ├── student/           student_dashboard, predict, mentorship, transcript, contact_admin
 ├── actions/           save_marks.php
-├── tools/             one-time setup scripts (answer only from localhost)
+├── tools/             one-time setup scripts (answer only from localhost); seed_demo_history.php
+│                      adds two "Demo" past semesters (command line only, --remove takes them out)
+├── tests/             end-to-end test suites (python tests/run_all.py; local copy only)
 ├── index.php
 ├── 404.php
 └── .htaccess          404 page, security headers, blocked files (update the 404 path if the folder is renamed)

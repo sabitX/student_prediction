@@ -1,22 +1,18 @@
 <?php
 // ── Shared grading / weighted scoring model ─────────────────────────────
-// Single source of truth for the formula and thresholds that were
-// previously duplicated across csv_upload.php, save_marks.php,
-// admin_dashboard.php and manage_students.php. Values are unchanged from
-// the original implementation (csv_upload.php) — this is a pure refactor.
+// Single source of truth for the formula and thresholds.
 //
-//   total_score = Assignment×20% + Midterm×30% + Final Exam×40% + Attendance×10%
+//   total_score = Assignment×A% + Midterm×M% + Final Exam×F% + Attendance×T%
 //   >= 80 Excellent | >= 60 Pass | >= 50 At Risk | < 50 Fail
 //
-// predict.php's What-If Calculator mirrors this same formula in
-// client-side JavaScript on purpose — it has to run instantly in the
-// browser without a server round trip, so it can't call this file.
+// The weights belong to each subject for each semester (subject_weights,
+// migration 012); a subject without its own uses MARK_WEIGHTS. The
+// predictions and early_risk_predictions views apply the same rule.
 // transcript.php uses a separate, intentionally different letter-grade
 // scale (A+/A/A-/B+.../F) for official GPA calculation — that's a
-// distinct business rule, not a duplicate of this one, and is untouched.
+// distinct business rule, not a duplicate of this one.
 
-// Weight of each mark component in the total. The predictions and
-// early_risk_predictions views (database/migrations) use the same numbers.
+// Default weight of each mark component (also the views' fallback).
 const MARK_WEIGHTS = [
     'assignment' => 0.20,
     'midterm'    => 0.30,
@@ -24,12 +20,98 @@ const MARK_WEIGHTS = [
     'attendance' => 0.10,
 ];
 
+// Each component's weight must be within this range (percent); together 100.
+const WEIGHT_MIN = 5;
+const WEIGHT_MAX = 80;
+
+// SQL to read a row's weights next to performance p / enrolment e:
+// add WEIGHTS_JOIN after the enrolment join and WEIGHTS_COLS to the SELECT.
+const WEIGHTS_JOIN = "LEFT JOIN subject_weights w ON w.subject_id = e.subject_id AND w.semester_id = e.semester_id";
+const WEIGHTS_COLS = "COALESCE(w.weight_assignment, 20) / 100 AS w_assignment, COALESCE(w.weight_midterm, 30) / 100 AS w_midterm,
+                      COALESCE(w.weight_final_exam, 40) / 100 AS w_final_exam, COALESCE(w.weight_attendance, 10) / 100 AS w_attendance";
+
 // Total needed for the "Pass" band; predict.php's target too.
 const PASS_MARK = 60;
 
-function compute_total_score($assignment, $midterm, $final_exam, $attendance) {
-    return ($assignment * MARK_WEIGHTS['assignment']) + ($midterm * MARK_WEIGHTS['midterm'])
-         + ($final_exam * MARK_WEIGHTS['final_exam']) + ($attendance * MARK_WEIGHTS['attendance']);
+// The weights (fractions) a row was read with (WEIGHTS_COLS or the
+// early_risk_predictions view), or the defaults.
+function row_weights(array $row) {
+    if (!isset($row['w_assignment'])) {
+        return MARK_WEIGHTS;
+    }
+    $weights = [];
+    foreach (MARK_WEIGHTS as $component => $_) {
+        $weights[$component] = (float)$row["w_$component"];
+    }
+    return $weights;
+}
+
+// One subject's weights (fractions) in one semester.
+function subject_weights($conn, $subject_id, $semester_id) {
+    $stmt = mysqli_prepare($conn, "SELECT weight_assignment, weight_midterm, weight_final_exam, weight_attendance
+                                   FROM subject_weights WHERE subject_id = ? AND semester_id = ?");
+    mysqli_stmt_bind_param($stmt, "ii", $subject_id, $semester_id);
+    mysqli_stmt_execute($stmt);
+    $row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    mysqli_stmt_close($stmt);
+    if (!$row) {
+        return MARK_WEIGHTS;
+    }
+    $weights = [];
+    foreach (MARK_WEIGHTS as $component => $_) {
+        $weights[$component] = (float)$row["weight_$component"] / 100;
+    }
+    return $weights;
+}
+
+// Validates and saves one subject's weights for one semester. $percent:
+// component => percentage. Returns an error message, or '' when saved.
+function save_subject_weights($conn, $subject_id, $semester_id, array $percent) {
+    $values = [];
+    foreach (MARK_WEIGHTS as $component => $_) {
+        $v = $percent[$component] ?? '';
+        if (!is_numeric($v) || round((float)$v, 2) != (float)$v) {
+            return "Enter every weight as a number (up to 2 decimal places).";
+        }
+        $v = (float)$v;
+        if ($v < WEIGHT_MIN || $v > WEIGHT_MAX) {
+            return "Each weight must be between " . WEIGHT_MIN . "% and " . WEIGHT_MAX . "%.";
+        }
+        $values[$component] = $v;
+    }
+    if (abs(array_sum($values) - 100) > 0.001) {
+        return "The weights add up to " . rtrim(rtrim(number_format(array_sum($values), 2), '0'), '.') . "%; they must add up to 100%.";
+    }
+    $stmt = mysqli_prepare($conn, "INSERT INTO subject_weights (subject_id, semester_id, weight_assignment, weight_midterm, weight_final_exam, weight_attendance)
+                                   VALUES (?, ?, ?, ?, ?, ?)
+                                   ON DUPLICATE KEY UPDATE weight_assignment = VALUES(weight_assignment), weight_midterm = VALUES(weight_midterm),
+                                                           weight_final_exam = VALUES(weight_final_exam), weight_attendance = VALUES(weight_attendance)");
+    mysqli_stmt_bind_param($stmt, "iidddd", $subject_id, $semester_id,
+        $values['assignment'], $values['midterm'], $values['final_exam'], $values['attendance']);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    return '';
+}
+
+// "Assignment 20% · Midterm 30% · Final 40% · Attendance 10%"
+function weights_label(array $weights, $short = false) {
+    $names = $short ? ['assignment' => 'A', 'midterm' => 'M', 'final_exam' => 'F', 'attendance' => 'T']
+                    : ['assignment' => 'Assignment', 'midterm' => 'Midterm', 'final_exam' => 'Final', 'attendance' => 'Attendance'];
+    $parts = [];
+    foreach ($names as $component => $name) {
+        $parts[] = $name . ' ' . weight_pct($weights[$component]);
+    }
+    return implode(' · ', $parts);
+}
+
+// 0.2 → "20%", 0.125 → "12.5%"
+function weight_pct($fraction) {
+    return rtrim(rtrim(number_format($fraction * 100, 2, '.', ''), '0'), '.') . '%';
+}
+
+function compute_total_score($assignment, $midterm, $final_exam, $attendance, array $weights = MARK_WEIGHTS) {
+    return ($assignment * $weights['assignment']) + ($midterm * $weights['midterm'])
+         + ($final_exam * $weights['final_exam']) + ($attendance * $weights['attendance']);
 }
 
 function predicted_status($total_score) {

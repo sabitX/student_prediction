@@ -169,6 +169,11 @@ require '../includes/page_start.php';
 ?>
     <div class="container mb-5" style="max-width:100%; margin-left:0;">
 
+    <div class="d-flex justify-content-end flex-wrap gap-2 mb-3">
+        <a href="export.php?type=results" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download me-1"></i>Results CSV</a>
+        <a href="export.php?type=at_risk" class="btn btn-sm btn-outline-secondary"><i class="bi bi-exclamation-triangle me-1"></i>At-risk list CSV</a>
+    </div>
+
     <!-- Summary Cards -->
     <div class="row g-4 mb-4">
         <div class="col-md-3">

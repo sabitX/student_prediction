@@ -264,6 +264,7 @@ require '../includes/page_start.php';
                             No subjects assigned yet
                         <?php else: ?>
                             <?php echo h($sub_info['subject_code']); ?> — <?php echo h($sub_info['subject_name']); ?> &nbsp;|&nbsp; <?php echo $student_count; ?> students
+                            <br><span style="font-size:0.82rem;" title="Set by the administrator for this subject this semester"><i class="bi bi-sliders me-1"></i>Weights: <?php echo h(weights_label(subject_weights($conn, $selected_subject_id, $semester_id))); ?></span>
                         <?php endif; ?>
                     </p>
                 </div>
@@ -279,6 +280,11 @@ require '../includes/page_start.php';
                                 <?php endforeach; ?>
                             </select>
                         </form>
+                    <?php endif; ?>
+                    <?php if (!$no_subjects_assigned): ?>
+                        <a href="export.php?subject_id=<?php echo (int)$selected_subject_id; ?>" class="btn btn-sm btn-outline-secondary" title="Marks, totals and statuses for this subject this semester">
+                            <i class="bi bi-download me-1"></i>Results CSV
+                        </a>
                     <?php endif; ?>
                     <div class="badge-semester">
                         <i class="bi bi-calendar3"></i> <?php echo $active_semester; ?>

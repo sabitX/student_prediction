@@ -93,7 +93,7 @@ require __DIR__ . '/page_start.php';
                             <div class="col-sm-6"><dt>Student ID</dt><dd><?php echo h($account['student_id']); ?></dd></div>
                         <?php endif; ?>
                     </dl>
-                    <p class="text-muted small mb-3">These come from your account. If any of them is wrong, say so in your message.</p>
+                    <p class="text-muted small mb-3">These come from your account. If any of them is wrong, say so in your message. See the <a href="../auth/privacy.php">privacy notice</a> for what SPTS keeps about you.</p>
 
                     <form method="POST" id="supportForm" novalidate>
                         <?php echo csrf_field(); ?>
