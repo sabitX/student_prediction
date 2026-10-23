@@ -222,7 +222,7 @@ The Student ID prefix implies a level (n0002 Diploma, n0003 Degree, n0004 Master
 |---|---|---|
 | subject_id | INT | **PK** (subject_id, semester_id); **FK → SUBJECTS.id**, CASCADE |
 | semester_id | INT | **FK → SEMESTERS.id**, CASCADE |
-| user_id | INT | **FK → USERS.id**, CASCADE; must be a lecturer (enforced by trigger) |
+| user_id | INT | **FK → USERS.id**, CASCADE; must be a lecturer (enforced by trigger); UNIQUE (user_id, subject_id, semester_id) |
 
 One lecturer per subject per semester. A lecturer is a USERS row with role = 'lecturer'; their name is USERS.full_name, never copied here. Activating a new semester carries over the previous semester's assignments if it has none.
 
@@ -695,7 +695,7 @@ erDiagram
 | courses | id, course_name | BCNF |
 | subjects | id, subject_code | BCNF |
 | semesters | id | 3NF (see generated columns below) |
-| lecturer_subjects | (subject_id, semester_id) | BCNF |
+| lecturer_subjects | (subject_id, semester_id); (user_id, subject_id, semester_id) is a superkey, also declared UNIQUE | BCNF |
 | student_enrollments | id, (student, subject, semester) | BCNF |
 | performance | enrollment_id | BCNF |
 | mentorship_sessions | session_id | 3NF |

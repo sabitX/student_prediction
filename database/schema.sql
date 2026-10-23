@@ -2,7 +2,7 @@
 -- Fresh install: create the database `student_prediction`
 -- (CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci), import this file as a
 -- user that can CREATE TRIGGER (e.g. root), then follow README
--- "First-time setup". Existing installs: run database/migrations/001–013
+-- "First-time setup". Existing installs: run database/migrations/001–014
 -- in order instead.
 --
 -- Generated from a database with all migrations applied, so a fresh
@@ -98,7 +98,7 @@ CREATE TABLE `lecturer_subjects` (
   `subject_id` int(11) NOT NULL,
   `semester_id` int(11) NOT NULL,
   PRIMARY KEY (`subject_id`,`semester_id`),
-  KEY `user_id` (`user_id`),
+  UNIQUE KEY `uniq_lecturer_subject_semester` (`user_id`,`subject_id`,`semester_id`),
   KEY `idx_lecturer_semester` (`semester_id`),
   CONSTRAINT `lecturer_subjects_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `lecturer_subjects_ibfk_2` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE,
