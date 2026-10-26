@@ -264,7 +264,7 @@ require '../includes/page_start.php';
                             No subjects assigned yet
                         <?php else: ?>
                             <?php echo h($sub_info['subject_code']); ?> — <?php echo h($sub_info['subject_name']); ?> &nbsp;|&nbsp; <?php echo $student_count; ?> students
-                            <br><span style="font-size:0.82rem;" title="Set by the administrator for this subject this semester"><i class="bi bi-sliders me-1"></i>Weights: <?php echo h(weights_label(subject_weights($conn, $selected_subject_id, $semester_id))); ?></span>
+                            <br><span style="font-size:0.82rem;" title="Set by the administrator for this subject this semester"><i class="bi bi-sliders me-1"></i>Weights: <?php echo h(weights_label(assessment_weights($conn, $selected_subject_id, $semester_id))); ?></span>
                         <?php endif; ?>
                     </p>
                 </div>

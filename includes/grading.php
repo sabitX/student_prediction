@@ -5,7 +5,7 @@
 //   total_score = Assignment×A% + Midterm×M% + Final Exam×F% + Attendance×T%
 //   >= 80 Excellent | >= 60 Pass | >= 50 At Risk | < 50 Fail
 //
-// The weights belong to each subject for each semester (subject_weights,
+// The weights belong to each subject for each semester (assessment_weights,
 // migration 012); a subject without its own uses MARK_WEIGHTS. The
 // predictions and early_risk_predictions views apply the same rule.
 // transcript.php uses a separate, intentionally different letter-grade
@@ -26,7 +26,7 @@ const WEIGHT_MAX = 80;
 
 // SQL to read a row's weights next to performance p / enrolment e:
 // add WEIGHTS_JOIN after the enrolment join and WEIGHTS_COLS to the SELECT.
-const WEIGHTS_JOIN = "LEFT JOIN subject_weights w ON w.subject_id = e.subject_id AND w.semester_id = e.semester_id";
+const WEIGHTS_JOIN = "LEFT JOIN assessment_weights w ON w.subject_id = e.subject_id AND w.semester_id = e.semester_id";
 const WEIGHTS_COLS = "COALESCE(w.weight_assignment, 20) / 100 AS w_assignment, COALESCE(w.weight_midterm, 30) / 100 AS w_midterm,
                       COALESCE(w.weight_final_exam, 40) / 100 AS w_final_exam, COALESCE(w.weight_attendance, 10) / 100 AS w_attendance";
 
@@ -47,9 +47,9 @@ function row_weights(array $row) {
 }
 
 // One subject's weights (fractions) in one semester.
-function subject_weights($conn, $subject_id, $semester_id) {
+function assessment_weights($conn, $subject_id, $semester_id) {
     $stmt = mysqli_prepare($conn, "SELECT weight_assignment, weight_midterm, weight_final_exam, weight_attendance
-                                   FROM subject_weights WHERE subject_id = ? AND semester_id = ?");
+                                   FROM assessment_weights WHERE subject_id = ? AND semester_id = ?");
     mysqli_stmt_bind_param($stmt, "ii", $subject_id, $semester_id);
     mysqli_stmt_execute($stmt);
     $row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
@@ -66,7 +66,7 @@ function subject_weights($conn, $subject_id, $semester_id) {
 
 // Validates and saves one subject's weights for one semester. $percent:
 // component => percentage. Returns an error message, or '' when saved.
-function save_subject_weights($conn, $subject_id, $semester_id, array $percent) {
+function save_assessment_weights($conn, $subject_id, $semester_id, array $percent) {
     $values = [];
     foreach (MARK_WEIGHTS as $component => $_) {
         $v = $percent[$component] ?? '';
@@ -82,7 +82,7 @@ function save_subject_weights($conn, $subject_id, $semester_id, array $percent) 
     if (abs(array_sum($values) - 100) > 0.001) {
         return "The weights add up to " . rtrim(rtrim(number_format(array_sum($values), 2), '0'), '.') . "%; they must add up to 100%.";
     }
-    $stmt = mysqli_prepare($conn, "INSERT INTO subject_weights (subject_id, semester_id, weight_assignment, weight_midterm, weight_final_exam, weight_attendance)
+    $stmt = mysqli_prepare($conn, "INSERT INTO assessment_weights (subject_id, semester_id, weight_assignment, weight_midterm, weight_final_exam, weight_attendance)
                                    VALUES (?, ?, ?, ?, ?, ?)
                                    ON DUPLICATE KEY UPDATE weight_assignment = VALUES(weight_assignment), weight_midterm = VALUES(weight_midterm),
                                                            weight_final_exam = VALUES(weight_final_exam), weight_attendance = VALUES(weight_attendance)");

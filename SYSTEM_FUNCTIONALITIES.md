@@ -39,7 +39,7 @@ There are 17 tables and 2 views:
 - `audit_logs`
 - `mentorship_sessions`
 - `support_requests` — Contact Admin requests (forgot password, cannot log in, other) with a reference number and status
-- `subject_weights` — each subject's assessment weights for each semester
+- `assessment_weights` — each subject's assessment weights for each semester
 - `early_warning_notices` — when a flagged student was last emailed about an early warning, at what level and by whom
 - `login_attempts`
 - `account_requests`

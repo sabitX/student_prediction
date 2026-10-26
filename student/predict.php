@@ -65,7 +65,7 @@ if (isset($_GET['get_marks']) && isset($_GET['subject_id'])) {
     header('Content-Type: application/json');
     // This subject's weights this semester, so the calculator matches the official total.
     echo json_encode(($marks ?: ['assignment' => '', 'midterm' => '', 'attendance' => ''])
-                     + ['clos' => $clos, 'weights' => subject_weights($conn, $subject_id, $semester_id)]);
+                     + ['clos' => $clos, 'weights' => assessment_weights($conn, $subject_id, $semester_id)]);
     exit();
 }
 ?>

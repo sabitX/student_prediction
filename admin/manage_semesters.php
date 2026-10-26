@@ -82,9 +82,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // back to an earlier semester never changes its results.
             $weights_copied = 0;
             if ($prev_id > 0 && $prev_id !== $id) {
-                $stmt = mysqli_prepare($conn, "INSERT IGNORE INTO subject_weights (subject_id, semester_id, weight_assignment, weight_midterm, weight_final_exam, weight_attendance)
+                $stmt = mysqli_prepare($conn, "INSERT IGNORE INTO assessment_weights (subject_id, semester_id, weight_assignment, weight_midterm, weight_final_exam, weight_attendance)
                                                SELECT w.subject_id, ?, w.weight_assignment, w.weight_midterm, w.weight_final_exam, w.weight_attendance
-                                               FROM subject_weights w
+                                               FROM assessment_weights w
                                                WHERE w.semester_id = ?
                                                  AND NOT EXISTS (SELECT 1 FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id
                                                                  WHERE e.subject_id = w.subject_id AND e.semester_id = ?)");

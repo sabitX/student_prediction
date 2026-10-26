@@ -2,7 +2,7 @@
 -- Fresh install: create the database `student_prediction`
 -- (CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci), import this file as a
 -- user that can CREATE TRIGGER (e.g. root), then follow README
--- "First-time setup". Existing installs: run database/migrations/001–014
+-- "First-time setup". Existing installs: run database/migrations/001–015
 -- in order instead.
 --
 -- Generated from a database with all migrations applied, so a fresh
@@ -98,7 +98,7 @@ CREATE TABLE `lecturer_subjects` (
   `subject_id` int(11) NOT NULL,
   `semester_id` int(11) NOT NULL,
   PRIMARY KEY (`subject_id`,`semester_id`),
-  UNIQUE KEY `uniq_lecturer_subject_semester` (`user_id`,`subject_id`,`semester_id`),
+  KEY `user_id` (`user_id`),
   KEY `idx_lecturer_semester` (`semester_id`),
   CONSTRAINT `lecturer_subjects_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `lecturer_subjects_ibfk_2` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE,
@@ -227,7 +227,7 @@ CREATE TABLE `subject_clos` (
   CONSTRAINT `subject_clos_subject_fk` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `subject_weights` (
+CREATE TABLE `assessment_weights` (
   `subject_id` int(11) NOT NULL,
   `semester_id` int(11) NOT NULL,
   `weight_assignment` decimal(5,2) NOT NULL,
@@ -236,9 +236,9 @@ CREATE TABLE `subject_weights` (
   `weight_attendance` decimal(5,2) NOT NULL,
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`subject_id`,`semester_id`),
-  KEY `idx_subject_weights_semester` (`semester_id`),
-  CONSTRAINT `subject_weights_semester_fk` FOREIGN KEY (`semester_id`) REFERENCES `semesters` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `subject_weights_subject_fk` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE,
+  KEY `idx_assessment_weights_semester` (`semester_id`),
+  CONSTRAINT `assessment_weights_semester_fk` FOREIGN KEY (`semester_id`) REFERENCES `semesters` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `assessment_weights_subject_fk` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE,
   CONSTRAINT `chk_weight_range` CHECK (`weight_assignment` between 5 and 80 and `weight_midterm` between 5 and 80 and `weight_final_exam` between 5 and 80 and `weight_attendance` between 5 and 80),
   CONSTRAINT `chk_weight_total` CHECK (`weight_assignment` + `weight_midterm` + `weight_final_exam` + `weight_attendance` = 100)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -310,7 +310,7 @@ SELECT
     END COLLATE utf8mb4_unicode_ci AS predicted_status
 FROM performance p
 JOIN student_enrollments e ON e.id = p.enrollment_id
-LEFT JOIN subject_weights w ON w.subject_id = e.subject_id AND w.semester_id = e.semester_id
+LEFT JOIN assessment_weights w ON w.subject_id = e.subject_id AND w.semester_id = e.semester_id
 WHERE p.assignment IS NOT NULL
   AND p.midterm    IS NOT NULL
   AND p.final_exam IS NOT NULL
@@ -396,7 +396,7 @@ SELECT
     IF(p.attendance IS NOT NULL AND p.attendance < 80, 1, 0) AS attendance_below_bar
 FROM performance p
 JOIN student_enrollments e ON e.id = p.enrollment_id
-LEFT JOIN subject_weights w ON w.subject_id = e.subject_id AND w.semester_id = e.semester_id
+LEFT JOIN assessment_weights w ON w.subject_id = e.subject_id AND w.semester_id = e.semester_id
 WHERE p.assignment IS NOT NULL
    OR p.midterm    IS NOT NULL
    OR p.final_exam IS NOT NULL

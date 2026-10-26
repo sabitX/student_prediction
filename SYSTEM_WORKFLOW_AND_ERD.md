@@ -222,7 +222,7 @@ The Student ID prefix implies a level (n0002 Diploma, n0003 Degree, n0004 Master
 |---|---|---|
 | subject_id | INT | **PK** (subject_id, semester_id); **FK → SUBJECTS.id**, CASCADE |
 | semester_id | INT | **FK → SEMESTERS.id**, CASCADE |
-| user_id | INT | **FK → USERS.id**, CASCADE; must be a lecturer (enforced by trigger); UNIQUE (user_id, subject_id, semester_id) |
+| user_id | INT | **FK → USERS.id**, CASCADE; must be a lecturer (enforced by trigger) |
 
 One lecturer per subject per semester. A lecturer is a USERS row with role = 'lecturer'; their name is USERS.full_name, never copied here. Activating a new semester carries over the previous semester's assignments if it has none.
 
@@ -253,7 +253,7 @@ The student, subject and semester come from the enrolment, so they aren't repeat
 | Column | Calculated as |
 |---|---|
 | student_id, subject_id, semester_id | from the enrolment (PERFORMANCE.enrollment_id → STUDENT_ENROLLMENTS) |
-| total_score | ROUND(Assignment×A + Midterm×M + Final Exam×F + Attendance×T, 2), with the subject's weights for that semester from SUBJECT_WEIGHTS (0.20/0.30/0.40/0.10 when it has none) |
+| total_score | ROUND(Assignment×A + Midterm×M + Final Exam×F + Attendance×T, 2), with the subject's weights for that semester from ASSESSMENT_WEIGHTS (0.20/0.30/0.40/0.10 when it has none) |
 | predicted_status | ≥ 80 'Excellent' · ≥ 60 'Pass' · ≥ 50 'At Risk' · else 'Fail' (from the rounded total) |
 
 A row appears only when all four marks are entered. Nothing is stored, so a result can never disagree with its marks (this is what makes the schema strictly 3NF; see B6). The view is merged into queries and uses PERFORMANCE's unique index, so reading it is as fast as reading a table.
@@ -367,14 +367,14 @@ A request from the sign-in page has no `user_id`: who sent it is not known until
 |---|---|
 | student_id, subject_id, semester_id | from the enrolment |
 | the four marks | from PERFORMANCE |
-| w_assignment, w_midterm, w_final_exam, w_attendance | the weights used (from SUBJECT_WEIGHTS, or the defaults) |
+| w_assignment, w_midterm, w_final_exam, w_attendance | the weights used (from ASSESSMENT_WEIGHTS, or the defaults) |
 | assessed_weight | sum of the weights of the components entered (up to 1.00) |
 | current_score | weighted average of the components entered, rescaled to 0–100 (equals total_score once all four are in) |
 | current_status | the usual bands applied to current_score |
 | min_final_to_pass | (60 − coursework points) ÷ the final exam's weight, when assignment, midterm and attendance are in and the final isn't |
 | attendance_below_bar | 1 when attendance < 80 (barred from the final exam, BE) |
 
-**19. SUBJECT_WEIGHTS** — how much each mark counts, per subject per semester (migration 012)
+**19. ASSESSMENT_WEIGHTS** — how much each mark counts, per subject per semester (migration 012; renamed from subject_weights in 015)
 | Attribute | Type | Key |
 |---|---|---|
 | subject_id | INT | **PK** (subject_id, semester_id); **FK → SUBJECTS.id**, CASCADE |
@@ -421,7 +421,7 @@ Written only after the mail server accepts the email. "Email all" skips enrolmen
 | R17 | SUBJECT_CLOS **gets** CQI_ACTIONS **in** SEMESTERS | 1 : N, one per semester | clo_id, semester_id | |
 | R18 | USERS (lecturer) **logs** CQI_ACTIONS | 1 : N | logged_by (SET NULL) | |
 | R19 | PERFORMANCE **produces** EARLY_RISK_PREDICTIONS (view) | 1 : 0..1 | calculated, not a foreign key | A row exists once any mark is present |
-| R20 | SUBJECTS **are weighted by** SUBJECT_WEIGHTS **in** SEMESTERS | 1 : 0..1 per semester | PK (subject_id, semester_id) | Missing row = default weights |
+| R20 | SUBJECTS **are weighted by** ASSESSMENT_WEIGHTS **in** SEMESTERS | 1 : 0..1 per semester | PK (subject_id, semester_id) | Missing row = default weights |
 | R21 | STUDENT_ENROLLMENTS **has** EARLY_WARNING_NOTICES | 1 : 0..1 | early_warning_notices.enrollment_id (PK and FK) | The latest email only |
 | R22 | USERS (lecturer) **sends** EARLY_WARNING_NOTICES | 1 : N | sent_by (SET NULL) | |
 
@@ -438,7 +438,7 @@ Written only after the mail server accepts the email. "Email all" skips enrolmen
 
   STUDENTS (mentee) 1 ──► N MENTORSHIP_SESSIONS N ◄── 1 USERS (mentor)
   SUBJECTS 1 ──► N SUBJECT_CLOS N ◄── 1 PLOS;  SUBJECT_CLOS 1 ──► N CLO_ASSESSMENTS, CQI_ACTIONS
-  SUBJECTS 1 ──► N SUBJECT_WEIGHTS N ◄── 1 SEMESTERS;  STUDENT_ENROLLMENTS 1 ──► 0..1 EARLY_WARNING_NOTICES
+  SUBJECTS 1 ──► N ASSESSMENT_WEIGHTS N ◄── 1 SEMESTERS;  STUDENT_ENROLLMENTS 1 ──► 0..1 EARLY_WARNING_NOTICES
 ```
 
 > The views are calculated from PERFORMANCE and the enrolment (they store nothing). B4 has the exact relationships.
@@ -474,8 +474,8 @@ erDiagram
     SEMESTERS ||--o{ CQI_ACTIONS : "during"
     USERS |o--o{ CQI_ACTIONS : "logs (lecturer)"
     PERFORMANCE ||--o| EARLY_RISK_PREDICTIONS : "calculated into (view)"
-    SUBJECTS ||--o{ SUBJECT_WEIGHTS : "weighted by"
-    SEMESTERS ||--o{ SUBJECT_WEIGHTS : "in"
+    SUBJECTS ||--o{ ASSESSMENT_WEIGHTS : "weighted by"
+    SEMESTERS ||--o{ ASSESSMENT_WEIGHTS : "in"
     STUDENT_ENROLLMENTS ||--o| EARLY_WARNING_NOTICES : "warned by email"
     USERS |o--o{ EARLY_WARNING_NOTICES : "sends (lecturer)"
 
@@ -615,7 +615,7 @@ erDiagram
         enum component PK
         int clo_id FK
     }
-    SUBJECT_WEIGHTS {
+    ASSESSMENT_WEIGHTS {
         int subject_id PK
         int semester_id PK
         decimal weight_assignment
@@ -695,7 +695,7 @@ erDiagram
 | courses | id, course_name | BCNF |
 | subjects | id, subject_code | BCNF |
 | semesters | id | 3NF (see generated columns below) |
-| lecturer_subjects | (subject_id, semester_id); (user_id, subject_id, semester_id) is a superkey, also declared UNIQUE | BCNF |
+| lecturer_subjects | (subject_id, semester_id) | BCNF |
 | student_enrollments | id, (student, subject, semester) | BCNF |
 | performance | enrollment_id | BCNF |
 | mentorship_sessions | session_id | 3NF |
@@ -707,7 +707,7 @@ erDiagram
 | subject_clos | id, (subject_id, clo_code) | BCNF |
 | clo_assessments | (subject_id, component), (clo_id, component) | 3NF (see below) |
 | cqi_actions | id, (clo_id, semester_id) | BCNF (attainment_pct is a snapshot) |
-| subject_weights | (subject_id, semester_id) | BCNF |
+| assessment_weights | (subject_id, semester_id) | BCNF |
 | early_warning_notices | enrollment_id | BCNF (risk_level is the level at the time of the email) |
 | *predictions*, *early_risk_predictions* | — | views; store nothing |
 

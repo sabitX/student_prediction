@@ -30,7 +30,7 @@ $marks = implode(',', array_fill(0, count($demo_names), '?'));
 
 if (in_array('--remove', $argv, true)) {
     mysqli_begin_transaction($conn);
-    foreach (['student_enrollments', 'lecturer_subjects', 'subject_weights'] as $table) {
+    foreach (['student_enrollments', 'lecturer_subjects', 'assessment_weights'] as $table) {
         $stmt = mysqli_prepare($conn, "DELETE t FROM $table t JOIN semesters s ON s.id = t.semester_id WHERE s.semester_name IN ($marks)");
         mysqli_stmt_bind_param($stmt, str_repeat('s', count($demo_names)), ...$demo_names);
         mysqli_stmt_execute($stmt);

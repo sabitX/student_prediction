@@ -7,14 +7,14 @@ B = BASE
 SEM = int(sql("SELECT id FROM semesters WHERE is_active = 1"))
 SUB = int(sql(f"SELECT e.subject_id FROM performance p JOIN student_enrollments e ON e.id=p.enrollment_id WHERE e.semester_id={SEM} AND p.final_exam IS NOT NULL GROUP BY e.subject_id ORDER BY COUNT(*) DESC LIMIT 1"))
 CODE = sql(f"SELECT subject_code FROM subjects WHERE id={SUB}")
-saved_w = sql(f"SELECT weight_assignment, weight_midterm, weight_final_exam, weight_attendance FROM subject_weights WHERE subject_id={SUB} AND semester_id={SEM}")
+saved_w = sql(f"SELECT weight_assignment, weight_midterm, weight_final_exam, weight_attendance FROM assessment_weights WHERE subject_id={SUB} AND semester_id={SEM}")
 audit_max = int(sql("SELECT COALESCE(MAX(id),0) FROM audit_logs"))
 stu_uid, stu_db = sql(f"SELECT s.user_id, s.id FROM students s JOIN student_enrollments e ON e.student_id=s.id JOIN performance p ON p.enrollment_id=e.id WHERE e.subject_id={SUB} AND e.semester_id={SEM} AND p.final_exam IS NOT NULL LIMIT 1").split('\t')
 lec_uid = sql(f"SELECT user_id FROM lecturer_subjects WHERE subject_id={SUB} AND semester_id={SEM}")
 adm, stu = fake_session(1, 'admin'), fake_session(stu_uid, 'student')
 start_all = sql("SELECT * FROM predictions ORDER BY 1,2,3")
 def wvals(sub, sem):
-    v = sql(f"SELECT weight_assignment, weight_midterm, weight_final_exam, weight_attendance FROM subject_weights WHERE subject_id={sub} AND semester_id={sem}")
+    v = sql(f"SELECT weight_assignment, weight_midterm, weight_final_exam, weight_attendance FROM assessment_weights WHERE subject_id={sub} AND semester_id={sem}")
     return tuple(float(x) for x in v.split('\t')) if v else None
 before_other = sql(f"SELECT * FROM predictions WHERE NOT (subject_id={SUB} AND semester_id={SEM}) ORDER BY 1,2,3")
 test_sem = None
@@ -34,7 +34,7 @@ try:
                       (('2', '38', '50', '10'), 'between 5% and 80%')]:
         r = post_weights(*vals)
         check(f'rejects {vals}', msg in r.text, re.findall(r'alert-bad[^>]*>.*?</div>', r.text, re.S)[:1])
-    check('invalid weights not saved', sql(f"SELECT weight_assignment, weight_midterm, weight_final_exam, weight_attendance FROM subject_weights WHERE subject_id={SUB} AND semester_id={SEM}") == saved_w)
+    check('invalid weights not saved', sql(f"SELECT weight_assignment, weight_midterm, weight_final_exam, weight_attendance FROM assessment_weights WHERE subject_id={SUB} AND semester_id={SEM}") == saved_w)
     r = post_weights('20', '30', '40', '9')
     check('typed values kept after error', 'value="9"' in r.text)
 
@@ -77,7 +77,7 @@ try:
         check(f'{who} cannot change weights', r.status_code == 302 and wvals(SUB, SEM) == (30, 20, 35, 15), (r.status_code, wvals(SUB, SEM)))
 
     # DB constraint as a backstop.
-    bad = sql_may_fail(f"UPDATE subject_weights SET weight_attendance = 20 WHERE subject_id={SUB} AND semester_id={SEM}")
+    bad = sql_may_fail(f"UPDATE assessment_weights SET weight_attendance = 20 WHERE subject_id={SUB} AND semester_id={SEM}")
     check('database CHECK rejects a total other than 100', bad.returncode != 0 and 'chk_weight_total' in bad.stderr)
 
     # Carry-over: a new semester inherits these weights; going back changes nothing.
@@ -94,12 +94,12 @@ try:
 finally:
     if saved_w:
         a, m, f, t = saved_w.split('\t')
-        sql(f"UPDATE subject_weights SET weight_assignment={a}, weight_midterm={m}, weight_final_exam={f}, weight_attendance={t} WHERE subject_id={SUB} AND semester_id={SEM}")
+        sql(f"UPDATE assessment_weights SET weight_assignment={a}, weight_midterm={m}, weight_final_exam={f}, weight_attendance={t} WHERE subject_id={SUB} AND semester_id={SEM}")
     else:
-        sql(f"DELETE FROM subject_weights WHERE subject_id={SUB} AND semester_id={SEM}")
+        sql(f"DELETE FROM assessment_weights WHERE subject_id={SUB} AND semester_id={SEM}")
     sql(f"UPDATE semesters SET is_active = (id = {SEM})")
     if test_sem:
-        sql(f"DELETE FROM lecturer_subjects WHERE semester_id={test_sem}; DELETE FROM subject_weights WHERE semester_id={test_sem}; DELETE FROM semesters WHERE id={test_sem}")
+        sql(f"DELETE FROM lecturer_subjects WHERE semester_id={test_sem}; DELETE FROM assessment_weights WHERE semester_id={test_sem}; DELETE FROM semesters WHERE id={test_sem}")
     sql(f"DELETE FROM audit_logs WHERE id > {audit_max}")
     remove_sessions()
     check('restored: results identical to start', sql("SELECT * FROM predictions ORDER BY 1,2,3") == start_all)

@@ -14,7 +14,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
 
 // ── One subject's assessment weights and learning outcomes ──────────────
 // The admin sets how much each mark component counts this semester
-// (subject_weights; earlier semesters keep theirs, so published results
+// (assessment_weights; earlier semesters keep theirs, so published results
 // never change), words each CLO, tags its Bloom's level and PLO, and
 // chooses which CLO each mark component assesses. Attainment is then
 // calculated from the marks lecturers already enter (includes/obe.php).
@@ -53,10 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     if (!$semester_id) {
         $error = "Set an active semester first; weights are set per semester.";
     } else {
-        $before = subject_weights($conn, $subject_id, $semester_id);
-        $error  = save_subject_weights($conn, $subject_id, $semester_id, $posted);
+        $before = assessment_weights($conn, $subject_id, $semester_id);
+        $error  = save_assessment_weights($conn, $subject_id, $semester_id, $posted);
         if (!$error) {
-            $after = subject_weights($conn, $subject_id, $semester_id);
+            $after = assessment_weights($conn, $subject_id, $semester_id);
             audit_log($conn, 'Assessment weights changed', "Subject: {$subject['subject_code']} | Semester: " . get_active_semester_name($conn)
                 . " | " . weights_label($before) . " → " . weights_label($after));
             $success = "Weights for {$subject['subject_code']} saved. This semester's totals and statuses now use them.";
@@ -153,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 
 redirect_after_success($success, $error);
 
-$weights = subject_weights($conn, $subject_id, $semester_id);
+$weights = assessment_weights($conn, $subject_id, $semester_id);
 // Typed values are kept when saving them failed.
 $weight_inputs = [];
 foreach ($weights as $component => $w) {
