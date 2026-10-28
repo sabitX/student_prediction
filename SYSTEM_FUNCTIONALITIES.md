@@ -3,7 +3,7 @@
 **System:** Student Performance Tracking System (SPTS), Nilai University
 **Stack:** PHP 8 (procedural, mysqli) · MySQL · Bootstrap 5.3 · Bootstrap Icons · Chart.js (all served locally from `assets/vendor/`) · XAMPP/Apache
 **Roles:** Administrator, Lecturer, Student (plus unauthenticated visitors). A student can also be a **peer mentor**.
-**Updated:** September 2026, after the fault-fix round (see section 10).
+**Updated:** October 2026 (fault fixes in section 10; later additions: OBE/CQI, early warning, Contact Admin, per-subject weights, progress trends, exports, privacy notice, tests).
 
 ---
 
@@ -416,7 +416,7 @@ Also fixed along the way:
 - **Student account with no profile** now shows a clear message instead of broken pages.
 
 ### Remaining limitations
-- There is no email service, so password resets need an admin (by design, for this XAMPP deployment).
+- Password resets always go through an admin who verifies the person (by design); there is no self-service email reset link.
 - `year_of_study` is limited to 1–3 for every level.
 - Google Fonts (Inter) still loads from the internet. Offline, pages fall back to the system font.
 - The `.htaccess` 404 path contains the folder name `student_prediction`.
