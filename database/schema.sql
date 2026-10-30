@@ -2,7 +2,7 @@
 -- Fresh install: create the database `student_prediction`
 -- (CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci), import this file as a
 -- user that can CREATE TRIGGER (e.g. root), then follow README
--- "First-time setup". Existing installs: run database/migrations/001–015
+-- "First-time setup". Existing installs: run database/migrations/001–016
 -- in order instead.
 --
 -- Generated from a database with all migrations applied, so a fresh
@@ -227,6 +227,9 @@ CREATE TABLE `subject_clos` (
   CONSTRAINT `subject_clos_subject_fk` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Saved weights are percentages per subject and semester; all four must total 100.
+-- Defaults are defined by MARK_WEIGHTS in includes/grading.php (fractions),
+-- mirrored by WEIGHTS_COLS and both views below as 20/30/40/10 fallbacks.
 CREATE TABLE `assessment_weights` (
   `subject_id` int(11) NOT NULL,
   `semester_id` int(11) NOT NULL,
@@ -307,7 +310,7 @@ SELECT
         WHEN ROUND(p.assignment * (COALESCE(w.weight_assignment, 20) / 100) + p.midterm * (COALESCE(w.weight_midterm, 30) / 100) + p.final_exam * (COALESCE(w.weight_final_exam, 40) / 100) + p.attendance * (COALESCE(w.weight_attendance, 10) / 100), 2) >= 60 THEN 'Pass'
         WHEN ROUND(p.assignment * (COALESCE(w.weight_assignment, 20) / 100) + p.midterm * (COALESCE(w.weight_midterm, 30) / 100) + p.final_exam * (COALESCE(w.weight_final_exam, 40) / 100) + p.attendance * (COALESCE(w.weight_attendance, 10) / 100), 2) >= 50 THEN 'At Risk'
         ELSE 'Fail'
-    END COLLATE utf8mb4_unicode_ci AS predicted_status
+    END COLLATE utf8mb4_unicode_ci AS result_status
 FROM performance p
 JOIN student_enrollments e ON e.id = p.enrollment_id
 LEFT JOIN assessment_weights w ON w.subject_id = e.subject_id AND w.semester_id = e.semester_id

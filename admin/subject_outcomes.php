@@ -196,7 +196,7 @@ require '../includes/page_start.php';
             <p class="text-muted mb-0" style="font-size:0.88rem;">Set an active semester first; weights are set per semester.</p>
         <?php else: ?>
         <p class="text-muted" style="font-size:0.82rem;">
-            How much each mark counts towards this subject's total this semester. Each must be <?php echo WEIGHT_MIN; ?>–<?php echo WEIGHT_MAX; ?>% and together 100%.
+            How much each mark counts towards this subject's total this semester. Each must be <?php echo WEIGHT_MIN; ?>–<?php echo WEIGHT_MAX; ?>%, and the four weights must add up to exactly 100%.
             Earlier semesters keep the weights they used, so published results never change. A new semester starts with these.
         </p>
         <form method="POST" id="weightsForm">
@@ -213,7 +213,7 @@ require '../includes/page_start.php';
                 </div>
                 <?php endforeach; ?>
                 <div class="col-md-12 col-xl-4 d-flex align-items-center gap-3 flex-wrap">
-                    <span style="font-size:0.88rem;">Total: <strong id="weightTotal">100%</strong></span>
+                    <span style="font-size:0.88rem;">Total: <strong id="weightTotal" aria-live="polite">100%</strong></span>
                     <button type="submit" name="save_weights" class="btn btn-primary-custom"
                             <?php if ($finished_results): ?>onclick="return confirm(<?php echo h(json_encode("$finished_results student" . ($finished_results === 1 ? ' has' : 's have') . " a final exam mark in this subject this semester. Their totals and statuses will be recalculated. Continue?")); ?>);"<?php endif; ?>>
                         <i class="bi bi-check-lg me-1"></i>Save Weights
@@ -347,17 +347,21 @@ require '../includes/page_start.php';
 <?php
 $page_scripts = <<<'JS'
 <script>
-// Live total of the four weights (the server checks it too).
+// Live total and browser validation; PHP and the database also enforce it.
 (function () {
-    const inputs = document.querySelectorAll('.weight-input');
+    const inputs = document.querySelectorAll('#weightsForm .weight-input');
     const out = document.getElementById('weightTotal');
-    if (!out) return;
+    if (!out || !inputs.length) return;
     function update() {
-        let sum = 0;
-        inputs.forEach(i => sum += parseFloat(i.value) || 0);
-        sum = Math.round(sum * 100) / 100;
+        // Inputs accept two decimals: compare integer hundredths to avoid
+        // floating-point errors for valid schemes such as 33.33/33.33/28.34/5.
+        let hundredths = 0;
+        inputs.forEach(i => hundredths += Math.round((parseFloat(i.value) || 0) * 100));
+        const sum = hundredths / 100;
+        const validTotal = hundredths === 10000;
         out.textContent = sum + '%';
-        out.className = Math.abs(sum - 100) < 0.001 ? 'text-success' : 'text-danger';
+        out.className = validTotal ? 'text-success' : 'text-danger';
+        inputs[0].setCustomValidity(validTotal ? '' : 'The four weights must add up to exactly 100% (currently ' + sum + '%).');
     }
     inputs.forEach(i => i.addEventListener('input', update));
     update();

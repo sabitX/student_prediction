@@ -44,7 +44,7 @@ function csv_download($filename, array $header, array $rows) {
 // far, total, status and remark, for a result sheet.
 function export_result_rows($conn, $semester_id, $subject_id = null) {
     $sql = "SELECT sub.subject_code, sub.subject_name, s.student_id, u.full_name, c.course_name,
-                   p.assignment, p.midterm, p.final_exam, p.attendance, pr.total_score, pr.predicted_status, " . WEIGHTS_COLS . "
+                   p.assignment, p.midterm, p.final_exam, p.attendance, pr.total_score, pr.result_status, " . WEIGHTS_COLS . "
             FROM student_enrollments e
             JOIN subjects sub ON sub.id = e.subject_id
             JOIN students s ON s.id = e.student_id
@@ -77,7 +77,7 @@ function export_result_rows($conn, $semester_id, $subject_id = null) {
             $r['subject_code'], $r['subject_name'], $r['student_id'], $r['full_name'], $r['course_name'],
             $r['assignment'], $r['midterm'], $r['final_exam'], $r['attendance'],
             weights_label(row_weights($r), true),
-            $r['total_score'], $r['predicted_status'] ?? 'Pending', $remark,
+            $r['total_score'], $r['result_status'] ?? 'Pending', $remark,
         ];
     }
     return $out;
@@ -94,7 +94,7 @@ function export_at_risk_rows($conn, $semester_id) {
     foreach (early_warnings($conn, $semester_id, 'all', 0) as $ew) {
         $a = $ew['analysis'];
         if ($a['final_marked']) {
-            $status = predicted_status((float)$a['current']);
+            $status = result_status((float)$a['current']);
             if (!in_array($status, ['At Risk', 'Fail'], true)) continue;
             $stage = 'Final result';
         } else {

@@ -18,6 +18,10 @@ Total Score = Assignment × A% + Midterm × M% + Final Exam × F% + Attendance �
 
 - **Weights per subject, per semester.** The admin sets each subject's weights for the active semester (default 20/30/40/10; each 5–80%, together 100%). Earlier semesters keep theirs, so published results never change; a new semester starts with the previous one's.
 
+- **Weight-total check and defaults.** The four percentages must sum to exactly 100, checked by the browser, `save_assessment_weights()` in `includes/grading.php`, and the database's `chk_weight_total` CHECK constraint. `MARK_WEIGHTS` in that PHP file defines the default 20/30/40/10 as fractions; saved percentages live in `assessment_weights`. `WEIGHTS_COLS` and both SQL views in `database/schema.sql` mirror the defaults using `COALESCE` when no saved row exists.
+
+- **Final results versus predictions.** `predictions.result_status` classifies a completed result as Excellent, Pass, At Risk or Fail. The view retains its historical name; predictions before the final exam are the separate early-warning feature.
+
 - **Progressive marks.** A blank mark means "not assessed yet" and is stored as NULL, never as 0. The total and status appear only when all four marks exist; until then the subject shows *Pending*.
 - **Semesters.** Exactly one semester is active. Enrolments, marks and results all belong to a semester, so the transcript can show per-semester GPA and cumulative CGPA.
 - **Enrolment.** Lecturers only see, and can only grade, students enrolled in their subject for the active semester.

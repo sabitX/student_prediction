@@ -180,7 +180,7 @@ if (isset($_POST['upload'])) {
 
                     // Result as the database calculates it (predictions view),
                     // so this report matches every other page exactly.
-                    $stmt_res = mysqli_prepare($conn, "SELECT total_score, predicted_status FROM predictions WHERE student_id = ? AND subject_id = ? AND semester_id = ?");
+                    $stmt_res = mysqli_prepare($conn, "SELECT total_score, result_status FROM predictions WHERE student_id = ? AND subject_id = ? AND semester_id = ?");
                     $student_db_id = (int)$student['id'];
                     $subject_db_id = (int)$subject['id'];
                     mysqli_stmt_bind_param($stmt_res, "iii", $student_db_id, $subject_db_id, $semester_id);
@@ -192,7 +192,7 @@ if (isset($_POST['upload'])) {
                         'subject_code' => $subject['subject_code'],
                         'marks'        => $marks,
                         'total_score'  => $res ? number_format((float)$res['total_score'], 2) : null,
-                        'status'       => $res ? $res['predicted_status'] : 'Pending',
+                        'status'       => $res ? $res['result_status'] : 'Pending',
                     ];
                 }
                 mysqli_commit($conn);

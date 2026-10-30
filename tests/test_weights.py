@@ -29,7 +29,9 @@ try:
     check('subject page shows weights editor', 'Assessment Weights' in r.text and 'name="weight[final_exam]"' in r.text)
     check('subjects list links to Weights & Outcomes', 'Weights &amp; Outcomes' in adm.get(f'{B}/admin/manage_subjects.php').text)
 
-    for vals, msg in [(('20', '30', '40', '9'), 'must add up to 100%'), (('5', '5', '85', '5'), 'between 5% and 80%'),
+    for vals, msg in [(('20', '30', '40', '9'), 'must add up to 100%'),
+                      (('20', '30', '40', '9.99'), 'must add up to 100%'),
+                      (('20', '30', '40', '10.01'), 'must add up to 100%'), (('5', '5', '85', '5'), 'between 5% and 80%'),
                       (('abc', '30', '40', '10'), 'Enter every weight as a number'), (('20.123', '29.877', '40', '10'), 'up to 2 decimal places'),
                       (('2', '38', '50', '10'), 'between 5% and 80%')]:
         r = post_weights(*vals)
@@ -43,7 +45,7 @@ try:
     check('valid weights saved', 'Weights for' in r.text and wvals(SUB, SEM) == (30, 20, 35, 15), wvals(SUB, SEM))
     audit = sql(f"SELECT details FROM audit_logs WHERE id>{audit_max} AND action='Assessment weights changed'")
     check('audit log records the change', 'Assignment 20% · Midterm 30% · Final 40% · Attendance 10% → Assignment 30% · Midterm 20% · Final 35% · Attendance 15%' in audit, audit)
-    rows = sql(f"SELECT p.assignment, p.midterm, p.final_exam, p.attendance, pr.total_score, pr.predicted_status FROM performance p JOIN student_enrollments e ON e.id=p.enrollment_id JOIN predictions pr ON pr.student_id=e.student_id AND pr.subject_id=e.subject_id AND pr.semester_id=e.semester_id WHERE e.subject_id={SUB} AND e.semester_id={SEM}").splitlines()
+    rows = sql(f"SELECT p.assignment, p.midterm, p.final_exam, p.attendance, pr.total_score, pr.result_status FROM performance p JOIN student_enrollments e ON e.id=p.enrollment_id JOIN predictions pr ON pr.student_id=e.student_id AND pr.subject_id=e.subject_id AND pr.semester_id=e.semester_id WHERE e.subject_id={SUB} AND e.semester_id={SEM}").splitlines()
     ok = True
     for line in rows:
         a, m, f, t, total, status = line.split('\t')
@@ -79,6 +81,9 @@ try:
     # DB constraint as a backstop.
     bad = sql_may_fail(f"UPDATE assessment_weights SET weight_attendance = 20 WHERE subject_id={SUB} AND semester_id={SEM}")
     check('database CHECK rejects a total other than 100', bad.returncode != 0 and 'chk_weight_total' in bad.stderr)
+    for attendance in ('14.99', '15.01'):
+        bad = sql_may_fail(f"UPDATE assessment_weights SET weight_attendance = {attendance} WHERE subject_id={SUB} AND semester_id={SEM}")
+        check(f'database CHECK rejects total {85 + float(attendance):.2f}', bad.returncode != 0 and 'chk_weight_total' in bad.stderr)
 
     # Carry-over: a new semester inherits these weights; going back changes nothing.
     sql("INSERT INTO semesters (semester_name, start_date, end_date, is_active) VALUES ('ZZ Weights Test', '2031-01-01', '2031-05-01', 0)")

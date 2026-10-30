@@ -337,7 +337,7 @@ require '../includes/page_start.php';
             <?php
             // ── SECURE QUERY: Fetch Official Results ───────────────────────
             $stmt_off = mysqli_prepare($conn,
-                "SELECT p.*, sub.subject_name, sub.subject_code, pr.total_score, pr.predicted_status
+                "SELECT p.*, sub.subject_name, sub.subject_code, pr.total_score, pr.result_status
                  FROM performance p
                  JOIN student_enrollments e ON e.id = p.enrollment_id
                  JOIN subjects sub ON e.subject_id = sub.id
@@ -359,7 +359,7 @@ require '../includes/page_start.php';
                 </thead>
                 <tbody>
                     <?php while ($row = mysqli_fetch_assoc($official)):
-                        $status =$row['predicted_status'] ?? 'Pending';
+                        $status =$row['result_status'] ?? 'Pending';
                         $badge = status_badge_class($status);
                     ?>
                     <tr>

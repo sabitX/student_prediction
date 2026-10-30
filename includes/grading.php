@@ -12,7 +12,10 @@
 // scale (A+/A/A-/B+.../F) for official GPA calculation — that's a
 // distinct business rule, not a duplicate of this one.
 
-// Default weight of each mark component (also the views' fallback).
+// Default 20/30/40/10 scheme, stored here as fractions totalling 1.00.
+// Saved overrides live in assessment_weights as percentages totalling 100.
+// WEIGHTS_COLS below and the SQL views in database/schema.sql mirror these
+// defaults as COALESCE fallbacks; keep them aligned when changing defaults.
 const MARK_WEIGHTS = [
     'assignment' => 0.20,
     'midterm'    => 0.30,
@@ -114,7 +117,9 @@ function compute_total_score($assignment, $midterm, $final_exam, $attendance, ar
          + ($final_exam * $weights['final_exam']) + ($attendance * $weights['attendance']);
 }
 
-function predicted_status($total_score) {
+// Classification of a completed final result. Early warnings use the same
+// bands for their projected_status, without turning a projection into a result.
+function result_status($total_score) {
     if ($total_score >= 80) return 'Excellent';
     if ($total_score >= 60) return 'Pass';
     if ($total_score >= 50) return 'At Risk';

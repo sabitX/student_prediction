@@ -30,7 +30,7 @@ function grade_from_score($score) {
 //  'credits', 'gpa', 'cgpa', 'avg_score'] (gpa/cgpa/avg_score null until
 // something is graded).
 function student_semester_history($conn, $student_db_id) {
-    $stmt = mysqli_prepare($conn, "SELECT sem.id AS semester_id, sem.semester_name, sub.credit_hours, pr.total_score, pr.predicted_status
+    $stmt = mysqli_prepare($conn, "SELECT sem.id AS semester_id, sem.semester_name, sub.credit_hours, pr.total_score, pr.result_status
                                    FROM student_enrollments e
                                    JOIN semesters sem ON sem.id = e.semester_id
                                    JOIN subjects sub ON sub.id = e.subject_id
@@ -56,7 +56,7 @@ function student_semester_history($conn, $student_db_id) {
             $h['credits']   += $credits;
             $h['points']    += grade_from_score((float)$r['total_score'])[1] * $credits;
             $h['score_sum'] += (float)$r['total_score'];
-            $h[$r['predicted_status'] === 'Fail' ? 'failed' : 'passed']++;
+            $h[$r['result_status'] === 'Fail' ? 'failed' : 'passed']++;
         }
         unset($h);
     }

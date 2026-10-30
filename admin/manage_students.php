@@ -437,7 +437,7 @@ require '../includes/page_start.php';
                     <td>
                         <?php
                         $avg = $row['avg_score'];
-                        $badge = status_badge_class(predicted_status($avg));
+                        $badge = status_badge_class(result_status($avg));
                         echo $avg !== null
                             ? '<span class="'.$badge.'">'.number_format($avg,2).'%</span>'
                             : '<span class="'.status_badge_class(null).'">Pending</span>';

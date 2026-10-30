@@ -52,10 +52,10 @@ unset($_SESSION['dashboard_flash']);
 // — the same enrolled roster Enter Marks shows, so the two pages agree.
 $stmt_stats = mysqli_prepare($conn,
     "SELECT COUNT(DISTINCT e.student_id) AS students,
-            SUM(pr.predicted_status = 'Excellent') AS excellent,
-            SUM(pr.predicted_status = 'Pass')      AS pass,
-            SUM(pr.predicted_status = 'At Risk')   AS at_risk,
-            SUM(pr.predicted_status = 'Fail')      AS fail
+            SUM(pr.result_status = 'Excellent') AS excellent,
+            SUM(pr.result_status = 'Pass')      AS pass,
+            SUM(pr.result_status = 'At Risk')   AS at_risk,
+            SUM(pr.result_status = 'Fail')      AS fail
      FROM lecturer_subjects ls
      JOIN subjects sub ON sub.id = ls.subject_id AND sub.is_archived = 0
      JOIN student_enrollments e ON e.subject_id = ls.subject_id AND e.semester_id = ls.semester_id AND e.semester_id = ?

@@ -36,7 +36,7 @@ $student_db_id = $student['id'];
 $semester_id = get_active_semester_id($conn);
 $stmt_perf = mysqli_prepare($conn, "SELECT sub.id AS subject_id, sub.subject_name, sub.subject_code,
                                      p.assignment, p.midterm, p.final_exam, p.attendance,
-                                     pr.predicted_status, pr.total_score, " . WEIGHTS_COLS . "
+                                     pr.result_status, pr.total_score, " . WEIGHTS_COLS . "
                                      FROM student_enrollments e
                                      JOIN subjects sub ON e.subject_id = sub.id
                                      " . WEIGHTS_JOIN . "
@@ -344,7 +344,7 @@ require '../includes/page_start.php';
                 <?php foreach ($rows as $row):
                     $has_score = $row['total_score'] !== null;
                     $score  = (float)$row['total_score'];
-                    $status = $row['predicted_status'] ?? 'Pending';
+                    $status = $row['result_status'] ?? 'Pending';
                     
                     // Soft status badge and muted bar colour (includes/grading.php)
                     $badge     = status_badge_class($status);

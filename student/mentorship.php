@@ -171,11 +171,11 @@ if ($is_peer_mentor) {
 }
 
 // ── SECURE QUERY: At Risk Subjects (this semester) ─────────────────────
-$stmt_risk = mysqli_prepare($conn, "SELECT sub.subject_name, sub.subject_code, pr.predicted_status
+$stmt_risk = mysqli_prepare($conn, "SELECT sub.subject_name, sub.subject_code, pr.result_status
                                     FROM predictions pr
                                     JOIN subjects sub ON pr.subject_id = sub.id
                                     WHERE pr.student_id = ? AND pr.semester_id = ?
-                                    AND pr.predicted_status IN ('At Risk', 'Fail')");
+                                    AND pr.result_status IN ('At Risk', 'Fail')");
 mysqli_stmt_bind_param($stmt_risk, "ii", $student_db_id, $semester_id);
 mysqli_stmt_execute($stmt_risk);
 $at_risk_list = mysqli_fetch_all(mysqli_stmt_get_result($stmt_risk), MYSQLI_ASSOC);
@@ -304,7 +304,7 @@ require '../includes/page_start.php';
     <div class="alert py-3 d-flex align-items-center gap-3 mb-3" style="background:#FFFBEB; border:1px solid #FCD34D; color:#92400E; border-radius:10px;">
         <i class="bi bi-exclamation-triangle-fill fs-4 text-warning"></i>
         <div style="font-size: 0.9rem;">
-            You are currently <strong class="text-danger"><?php echo h($risk['predicted_status']); ?></strong>
+            You are currently <strong class="text-danger"><?php echo h($risk['result_status']); ?></strong>
             in <strong style="color:#1A3A5C;"><?php echo h($risk['subject_code']); ?> — <?php echo h($risk['subject_name']); ?></strong>.<br>
             Book a session with your lecturer or a peer mentor below to get academic support before your final exam.
         </div>

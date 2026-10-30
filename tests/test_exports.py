@@ -28,6 +28,9 @@ try:
     totals = {row[2]: row[10] for row in rows[1:]}
     db = dict(l.split('\t') for l in sql(f"SELECT s.student_id, COALESCE(pr.total_score,'') FROM student_enrollments e JOIN students s ON s.id=e.student_id LEFT JOIN predictions pr ON pr.student_id=e.student_id AND pr.subject_id=e.subject_id AND pr.semester_id=e.semester_id WHERE e.subject_id={SUB} AND e.semester_id={SEM}").splitlines())
     check('totals match the predictions view', totals == db, (totals, db))
+    statuses = {row[2]: row[11] for row in rows[1:]}
+    db_statuses = dict(l.split('\t') for l in sql(f"SELECT s.student_id, COALESCE(pr.result_status,'Pending') FROM student_enrollments e JOIN students s ON s.id=e.student_id LEFT JOIN predictions pr ON pr.student_id=e.student_id AND pr.subject_id=e.subject_id AND pr.semester_id=e.semester_id WHERE e.subject_id={SUB} AND e.semester_id={SEM}").splitlines())
+    check('statuses match final result_status from the view', statuses == db_statuses)
     r = lec.get(f'{B}/lecturer/export.php?subject_id={OTHER_SUB}', allow_redirects=False)
     check("lecturer can't export a subject they don't teach", r.status_code == 302 and 'text/csv' not in r.headers.get('Content-Type', ''))
 
@@ -39,7 +42,7 @@ try:
         text, rows = parse(adm.get(f'{B}/admin/export.php?type=results&semester_id={past}'))
         check('admin results CSV for a past semester', len(rows) - 1 == int(sql(f"SELECT COUNT(*) FROM student_enrollments WHERE semester_id={past}")))
         text, rows = parse(adm.get(f'{B}/admin/export.php?type=at_risk&semester_id={past}'))
-        n_bad = int(sql(f"SELECT COUNT(*) FROM predictions WHERE semester_id={past} AND predicted_status IN ('At Risk','Fail')"))
+        n_bad = int(sql(f"SELECT COUNT(*) FROM predictions WHERE semester_id={past} AND result_status IN ('At Risk','Fail')"))
         check(f'at-risk CSV lists At Risk/Fail results ({n_bad})', len(rows) - 1 == n_bad and rows[0][4] == 'Stage', len(rows) - 1)
     r = adm.get(f'{B}/admin/export.php?type=results&semester_id=999999', allow_redirects=False)
     check('unknown semester redirects, no file', r.status_code == 302)

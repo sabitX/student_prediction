@@ -28,9 +28,11 @@ Going live on a real server? Follow **DEPLOYMENT.md** (HTTPS, php.ini, backups, 
 
 ### Upgrading an existing install
 
-Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql`, `007_predictions_view_collation.sql`, `008_student_account_requests.sql`, `009_obe_and_early_warning.sql`, `010_normalization_review.sql`, `011_support_requests.sql`, `012_subject_weights.sql`, `013_early_warning_notices.sql`, `014_lecturer_subjects_unique.sql` and `015_assessment_weights.sql`, each once, in that order, as MySQL `root` (004–010 create triggers, views and constraints). After that, do steps 5–6 above.
+Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql`, `007_predictions_view_collation.sql`, `008_student_account_requests.sql`, `009_obe_and_early_warning.sql`, `010_normalization_review.sql`, `011_support_requests.sql`, `012_subject_weights.sql`, `013_early_warning_notices.sql`, `014_lecturer_subjects_unique.sql`, `015_assessment_weights.sql` and `016_result_status.sql`, each once, in that order, as MySQL `root` (004–010 create triggers, views and constraints). After that, do steps 5–6 above.
 
 ---
+
+If migrations 001–015 are already applied, run only `database/migrations/016_result_status.sql` for this update. It renames the final-result column and enforces the 100% weight-total constraint. Deploy the updated PHP code together with this migration.
 
 ## FIRST TIME SETUP (run once in browser)
 
@@ -56,11 +58,21 @@ The `tools/` scripts disable themselves once an admin, lecturer or subject exist
 
 ---
 
-## PREDICTION FORMULA
+## FINAL RESULT FORMULA
 
 Total Score = (Assignment x A%) + (Midterm x M%) + (Final Exam x F%) + (Attendance x T%)
 
 Each subject has its own weights for each semester (Subjects → Weights & Outcomes; 20/30/40/10 by default, each 5–80%, together 100%). Earlier semesters keep the weights they used, and a new semester starts with the previous one's.
+
+The four weights must add up to **exactly 100%**. The weights form validates the total before submission, `save_assessment_weights()` in `includes/grading.php` validates it on the server, and the database enforces `chk_weight_total` on `assessment_weights`:
+
+```sql
+CHECK (weight_assignment + weight_midterm + weight_final_exam + weight_attendance = 100)
+```
+
+The default **20/30/40/10** scheme is defined by `MARK_WEIGHTS` in `includes/grading.php` as fractions (`0.20`, `0.30`, `0.40`, `0.10`). Saved schemes are rows in `assessment_weights`, keyed by subject and semester, with percentages (`20`, `30`, `40`, `10`). If no row exists, PHP uses `MARK_WEIGHTS`; `WEIGHTS_COLS` and the two views in `database/schema.sql` mirror these defaults through `COALESCE` fallbacks. Migration 012 also seeds explicit default rows for the active semester when upgrading.
+
+`predictions.result_status` is the final classification once all four marks are present. The view retains its historical name; forecasts before the final exam belong to the separate early-warning feature (`early_risk_predictions` and `includes/early_warning.php`).
 
 - \>= 80 : Excellent
 - \>= 60 : Pass

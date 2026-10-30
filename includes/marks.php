@@ -119,13 +119,13 @@ function save_student_marks($conn, $student_db_id, $subject_id, $semester_id, ar
     // The total and status are not stored: the predictions view calculates
     // them from these marks (database/migrations/006_predictions_view.sql).
     // Reading it back keeps the audit entry identical to what pages show.
-    $stmt = mysqli_prepare($conn, "SELECT total_score, predicted_status FROM predictions WHERE student_id = ? AND subject_id = ? AND semester_id = ?");
+    $stmt = mysqli_prepare($conn, "SELECT total_score, result_status FROM predictions WHERE student_id = ? AND subject_id = ? AND semester_id = ?");
     mysqli_stmt_bind_param($stmt, "iii", $student_db_id, $subject_id, $semester_id);
     mysqli_stmt_execute($stmt);
     $result = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
     mysqli_stmt_close($stmt);
     $result_text = $result
-        ? "Score: " . number_format((float)$result['total_score'], 2) . " | Status: {$result['predicted_status']}"
+        ? "Score: " . number_format((float)$result['total_score'], 2) . " | Status: {$result['result_status']}"
         : "Status: Pending (incomplete marks)";
 
     $details = "Student: {$ctx['student_code']} | Subject: {$ctx['subject_code']} | "

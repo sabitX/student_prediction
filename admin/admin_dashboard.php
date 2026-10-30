@@ -24,9 +24,9 @@ $total_subjects    = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as 
 $total_lecturers   = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE role='lecturer'"))['total'];
 
 $status_counts = ['Excellent' => 0, 'Pass' => 0, 'At Risk' => 0, 'Fail' => 0];
-$res_status = mysqli_query($conn, "SELECT predicted_status, COUNT(*) AS total FROM predictions WHERE semester_id = $semester_id GROUP BY predicted_status");
+$res_status = mysqli_query($conn, "SELECT result_status, COUNT(*) AS total FROM predictions WHERE semester_id = $semester_id GROUP BY result_status");
 while ($row = mysqli_fetch_assoc($res_status)) {
-    $status_counts[$row['predicted_status']] = (int)$row['total'];
+    $status_counts[$row['result_status']] = (int)$row['total'];
 }
 $excellent = $status_counts['Excellent'];
 $pass      = $status_counts['Pass'];
@@ -46,7 +46,7 @@ while ($row = mysqli_fetch_assoc($subject_chart)) {
     $subject_labels[] = $row['subject_name'];
     $avg = round($row['avg_score'], 2);
     $subject_scores[] = $avg;
-    $subject_statuses[] = predicted_status($avg);
+    $subject_statuses[] = result_status($avg);
 }
 
 // Support requests still waiting for an admin (admin/support_requests.php).
@@ -372,7 +372,7 @@ require '../includes/page_start.php';
                     <td>
                         <?php
                         $avg =$row['avg_score'];
-                        $badge = status_badge_class(predicted_status($avg));
+                        $badge = status_badge_class(result_status($avg));
                         echo $avg !== null
                             ? '<span class="'.$badge.'">'.number_format($avg,2).'%</span>'
                             : '<span class="'.status_badge_class(null).'">Pending</span>';

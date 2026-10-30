@@ -113,11 +113,11 @@ and the ACTIVE semester (semesters.is_active = 1)
       │                      For each student row (one DB transaction):
       │                      1. Validate: each mark numeric 0–100 or blank
       │                      2. Nothing changed? → skip
-      │                      3. Upsert raw marks  → PERFORMANCE (student, subject, semester)
-      │                      4. All 4 present?  total = A×0.2 + M×0.3 + F×0.4 + T×0.1
+      │                      3. Upsert raw marks  → PERFORMANCE (enrollment_id)
+      │                      4. All 4 present? → view applies this semester's weights
       │                           → classify ≥80 Excellent, ≥60 Pass, ≥50 At Risk, else Fail
-      │                           → upsert PREDICTIONS
-      │                         Incomplete? → delete any PREDICTIONS row (status "Pending")
+      │                           → calculates TotalScore and ResultStatus (nothing stored)
+      │                         Incomplete? → no PREDICTIONS view row (status "Pending")
       │                      5. Record old → new values → AUDIT_LOGS (with actor_name)
       │                                                   │
       ▼                                                   ▼
@@ -254,7 +254,9 @@ The student, subject and semester come from the enrolment, so they aren't repeat
 |---|---|
 | student_id, subject_id, semester_id | from the enrolment (PERFORMANCE.enrollment_id → STUDENT_ENROLLMENTS) |
 | total_score | ROUND(Assignment×A + Midterm×M + Final Exam×F + Attendance×T, 2), with the subject's weights for that semester from ASSESSMENT_WEIGHTS (0.20/0.30/0.40/0.10 when it has none) |
-| predicted_status | ≥ 80 'Excellent' · ≥ 60 'Pass' · ≥ 50 'At Risk' · else 'Fail' (from the rounded total) |
+| result_status | ≥ 80 'Excellent' · ≥ 60 'Pass' · ≥ 50 'At Risk' · else 'Fail' (from the rounded total) |
+
+`ResultStatus` (`result_status` in SQL/PHP) describes the final result, not an early-warning prediction. The view retains its historical name `predictions`; forecasts before the final exam use `early_risk_predictions`.
 
 A row appears only when all four marks are entered. Nothing is stored, so a result can never disagree with its marks (this is what makes the schema strictly 3NF; see B6). The view is merged into queries and uses PERFORMANCE's unique index, so reading it is as fast as reading a table.
 
@@ -383,6 +385,8 @@ A request from the sign-in page has no `user_id`: who sent it is not known until
 | updated_at | TIMESTAMP | |
 
 Keyed by semester so a subject can change its scheme without changing earlier results. A (subject, semester) with no row uses 20/30/40/10. Activating a semester copies the previous semester's weights to subjects that have no weights and no marks there yet.
+
+The four weights must total exactly 100, enforced by the browser, PHP's `save_assessment_weights()` and database constraint `chk_weight_total`: `CHECK (weight_assignment + weight_midterm + weight_final_exam + weight_attendance = 100)`. The default scheme is defined in `includes/grading.php` as `MARK_WEIGHTS` (0.20/0.30/0.40/0.10), mirrored by `WEIGHTS_COLS` and both views in `database/schema.sql` as `COALESCE` fallbacks. Saved schemes use percentage values in this table; migration 012 seeds explicit defaults for the active semester on upgrade.
 
 **20. EARLY_WARNING_NOTICES** — the latest early-warning email for an enrolment (migration 013)
 | Attribute | Type | Key |
@@ -542,7 +546,7 @@ erDiagram
         int subject_id
         int semester_id
         decimal total_score "calculated"
-        varchar predicted_status "calculated"
+        varchar result_status "calculated"
     }
     AUDIT_LOGS {
         int id PK
@@ -671,19 +675,19 @@ erDiagram
 **From one student's academic record to the final tables** (the full write-up with underlined keys is the normalization report; this is the summary)
 
 - **0NF.** One record per student, with a *repeating group of semesters*, each holding a *repeating group of subjects*:
-  STUDENT ACADEMIC RECORD (StudentID, UserID, FullName, Email, PasswordHash, Role, MustChangePassword, OnboardingDone, UserCreatedAt, MatricNo, CourseID, CourseName, AcademicLevel, YearOfStudy, IsMentor, (SemesterID, SemesterName, StartDate, EndDate, IsActive, SemesterCreatedAt, (SubjectID, SubjectCode, SubjectName, CreditHours, IsArchived, LecturerID, LecturerName, EnrollmentID, EnrolledAt, Assignment, Midterm, FinalExam, Attendance, MarksCreatedAt, TotalScore, PredictedStatus)))
+  STUDENT ACADEMIC RECORD (StudentID, UserID, FullName, Email, PasswordHash, Role, MustChangePassword, OnboardingDone, UserCreatedAt, MatricNo, CourseID, CourseName, AcademicLevel, YearOfStudy, IsMentor, (SemesterID, SemesterName, StartDate, EndDate, IsActive, SemesterCreatedAt, (SubjectID, SubjectCode, SubjectName, CreditHours, IsArchived, LecturerID, LecturerName, EnrollmentID, EnrolledAt, Assignment, Midterm, FinalExam, Attendance, MarksCreatedAt, TotalScore, ResultStatus)))
 - **1NF.** Remove the repeating groups: STUDENT (key StudentID) and STUDENT SEMESTER SUBJECT (key StudentID, SemesterID, SubjectID). EnrollmentID is an alternate key for that same combination.
 - **2NF.** Remove partial dependencies on that composite key:
   - SemesterID → semester details → **SEMESTERS**
   - SubjectID → subject details → **SUBJECTS**
   - (SubjectID, SemesterID) → LecturerID, LecturerName → **LECTURER SUBJECTS**
   - the whole key → EnrollmentID, EnrolledAt → **STUDENT ENROLLMENTS** (PK EnrollmentID)
-  - EnrollmentID → marks, TotalScore, PredictedStatus → **PERFORMANCE** (PK and FK EnrollmentID — it refers to the enrolment only, so the key isn't repeated)
+  - EnrollmentID → marks, TotalScore, ResultStatus → **PERFORMANCE** (PK and FK EnrollmentID — it refers to the enrolment only, so the key isn't repeated)
 - **3NF.** Remove transitive dependencies:
   - StudentID → UserID → FullName, Email, PasswordHash, Role, … → **USERS**
   - StudentID → CourseID → CourseName, AcademicLevel → **COURSES**
   - (SubjectID, SemesterID) → LecturerID → LecturerName: a lecturer is a user with Role = 'Lecturer', so LecturerID becomes UserID* and LecturerName is USERS.FullName — not stored again.
-  - marks → TotalScore → PredictedStatus: both are **calculated at runtime** by the PREDICTIONS view and never stored, so they can't disagree with the marks.
+  - marks → TotalScore → ResultStatus: both are **calculated at runtime** by the PREDICTIONS view and never stored, so they can't disagree with the marks.
 - `semesters.is_active` is the only "active" attribute. The database also has a generated helper column (`active_flag`) so a UNIQUE index can allow at most one active semester; it holds no data of its own and is not part of the logical design.
 
 **Result:** every table is in **3NF**, and all except the six marked 3NF below are also in **BCNF**.

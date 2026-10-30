@@ -38,7 +38,7 @@ if (!$student) {
 // Every enrolment across all semesters, newest semester first.
 $stmt_perf = mysqli_prepare($conn, "SELECT sem.semester_name, sub.subject_name, sub.subject_code,
                                     p.assignment, p.midterm, p.final_exam, p.attendance,
-                                    pr.predicted_status, pr.total_score
+                                    pr.result_status, pr.total_score
                                     FROM student_enrollments e
                                     JOIN semesters sem ON sem.id = e.semester_id
                                     JOIN subjects sub ON e.subject_id = sub.id
@@ -140,7 +140,7 @@ require '../includes/page_start.php';
                 </thead>
                 <tbody>
                     <?php while ($row = mysqli_fetch_assoc($perf_query)):
-                        $status = $row['predicted_status'] ?? 'Pending';
+                        $status = $row['result_status'] ?? 'Pending';
                         $badge = status_badge_class($status);
                     ?>
                     <tr>

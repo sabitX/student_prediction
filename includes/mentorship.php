@@ -26,7 +26,7 @@ function find_mentors($conn, $subject_id, $exclude_user_id) {
          SELECT DISTINCT u.id, u.full_name, u.email, 'Peer Mentor' AS mentor_type
          FROM users u
          JOIN students s ON s.user_id = u.id AND s.is_mentor = 1
-         JOIN predictions pr ON pr.student_id = s.id AND pr.subject_id = ? AND pr.predicted_status = 'Excellent'
+         JOIN predictions pr ON pr.student_id = s.id AND pr.subject_id = ? AND pr.result_status = 'Excellent'
          JOIN subjects sub ON sub.id = pr.subject_id AND sub.is_archived = 0
          WHERE u.id <> ?
          ORDER BY mentor_type, full_name");

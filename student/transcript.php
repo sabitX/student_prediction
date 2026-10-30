@@ -30,7 +30,7 @@ mysqli_stmt_close($stmt_student);
 // from GPA — it is never treated as a score of 0.
 $stmt_perf = mysqli_prepare($conn, "SELECT sem.id AS semester_id, sem.semester_name, sem.start_date,
                                             sub.subject_name, sub.subject_code, sub.credit_hours,
-                                            p.attendance, pr.total_score, pr.predicted_status
+                                            p.attendance, pr.total_score, pr.result_status
                                      FROM student_enrollments e
                                      JOIN semesters sem ON sem.id = e.semester_id
                                      JOIN subjects sub ON sub.id = e.subject_id
@@ -58,10 +58,10 @@ while ($row = mysqli_fetch_assoc($performance)) {
         [$grade, $gp] = grade_from_score((float)$row['total_score']);   // includes/progress.php
         $semesters[$sid]['credits'] += $wt;
         $semesters[$sid]['points']  += $gp * $wt;
-        $passed = ($row['predicted_status'] !== 'Fail');
+        $passed = ($row['result_status'] !== 'Fail');
         // BE: attendance below the bar for sitting the final exam.
         $remark = ((float)$row['attendance'] < ATTENDANCE_BAR) ? 'BE'
-                : (($row['predicted_status'] === 'At Risk') ? 'At Risk' : '');
+                : (($row['result_status'] === 'At Risk') ? 'At Risk' : '');
     } else {
         [$grade, $gp, $passed, $remark] = ['GP', null, null, 'Pending'];
     }

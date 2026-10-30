@@ -134,7 +134,7 @@ function ew_analyse(array $row, $prior, array $cohort) {
         'final_marked'     => $final_marked,
         'current'          => $current,
         'projected'        => $projected,
-        'projected_status' => predicted_status($projected),
+        'projected_status' => result_status($projected),
         'prior'            => $prior,
         'prior_source'     => $prior_source,
         'alpha'            => $alpha,

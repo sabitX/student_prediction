@@ -62,7 +62,7 @@ if (!$no_subjects_assigned) {
     $stmt_grid = mysqli_prepare($conn,
         "SELECT s.id as std_db_id, s.student_id, c.academic_level, u.full_name,
                  p.assignment, p.midterm, p.final_exam, p.attendance,
-                 pr.total_score, pr.predicted_status
+                 pr.total_score, pr.result_status
          FROM student_enrollments e
          JOIN students s ON s.id = e.student_id
          JOIN courses c ON c.id = s.course_id
@@ -79,8 +79,8 @@ if (!$no_subjects_assigned) {
 
     // Calculate Stats for the Top Cards
     while ($row = mysqli_fetch_assoc($all_students)) {
-        if ($row['predicted_status']) {
-            $stats[$row['predicted_status']]++;
+        if ($row['result_status']) {
+            $stats[$row['result_status']]++;
         }
         if (isset($level_counts[$row['academic_level']])) {
             $level_counts[$row['academic_level']]++;
@@ -401,7 +401,7 @@ require '../includes/page_start.php';
                                 $f = mark_input_value($row['final_exam']);
                                 $t = mark_input_value($row['attendance']);
                                 $total  = $row['total_score'] ?? '';
-                                $status = $row['predicted_status'] ?? '';
+                                $status = $row['result_status'] ?? '';
 
                                 // Escaped once per row and reused across all four
                                 // aria-labels below (WCAG: every input needs an
