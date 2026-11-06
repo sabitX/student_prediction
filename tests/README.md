@@ -28,5 +28,7 @@ python tests/test_weights.py       # one suite
 | `test_weights.py` | Per-subject, per-semester assessment weights: validation, recalculated totals, untouched history, carry-over to a new semester, the what-if calculator and dashboards, admin-only editing, database CHECK constraints |
 | `test_ew_email.py` | Early-warning emails through a local SMTP sink (`smtp_sink.py`): content and links, "email all" never repeats, roster-only targets, CSRF, mail server down, no mail settings |
 | `test_exports.py` | CSV exports: contents match the database, UTF-8 BOM, role and ownership checks, formula-injection protection, audit log |
+| `test_csv_upload.py` | CSV mark upload: blank cells keep saved marks, audit entry lists only real changes; form fields sent as arrays get a normal reply, not a server error |
+| `test_staff_history.py` | Deleting a lecturer keeps their teaching record in every semester with their name; assignments without a lecturer are refused; activating a semester carries over only real assignments |
 
 A suite exits with code 0 when every check passes.

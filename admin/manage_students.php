@@ -102,11 +102,11 @@ if (isset($_POST['action']) && isset($_POST['student_id']) && csrf_verify()) {
 
 // ── SECURE POST: Add New Student ──────────────────────────────────────
 if (isset($_POST['add_student']) && csrf_verify()) {
-    $reg_full_name = trim($_POST['full_name'] ?? '');
-    $reg_email     = trim($_POST['email'] ?? '');
-    $reg_password  = $_POST['password'] ?? '';
-    $student_id    = normalize_student_id($_POST['student_id'] ?? '');
-    $course        = trim($_POST['course'] ?? '');
+    $reg_full_name = trim(post_string('full_name'));
+    $reg_email     = trim(post_string('email'));
+    $reg_password  = post_string('password');
+    $student_id    = normalize_student_id(post_string('student_id'));
+    $course        = trim(post_string('course'));
     $year          = (int)($_POST['year_of_study'] ?? 0);
 
     if (empty($reg_full_name) || empty($reg_email) || empty($student_id) || empty($course)) {
@@ -183,7 +183,7 @@ if (isset($_POST['add_student']) && csrf_verify()) {
 // means there is never a stale/conflicting academic_level to reconcile.
 if (isset($_POST['edit_student']) && csrf_verify()) {
     $edit_id     = (int)($_POST['edit_id'] ?? 0);
-    $edit_course = trim($_POST['edit_course'] ?? '');
+    $edit_course = trim(post_string('edit_course'));
     $edit_year   = (int)($_POST['edit_year_of_study'] ?? 0);
 
     // The programme must still match the level implied by the (fixed) Student ID.

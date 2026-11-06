@@ -15,9 +15,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
         $error = "Your session expired. Please try again.";
     } else {
-        $current = $_POST['current_password'] ?? '';
-        $new     = $_POST['new_password'] ?? '';
-        $confirm = $_POST['confirm_password'] ?? '';
+        $current = post_string('current_password');
+        $new     = post_string('new_password');
+        $confirm = post_string('confirm_password');
 
         $stmt = mysqli_prepare($conn, "SELECT password_hash FROM users WHERE id = ?");
         mysqli_stmt_bind_param($stmt, "i", $user_id);

@@ -29,10 +29,10 @@ if (isset($_POST['add_lecturer'])) {
         $error = "Your session expired or the request could not be verified. Please try again.";
     } else {
         // Separate names so the signed-in admin's own $full_name (topbar) is untouched.
-        $new_name     = trim($_POST['full_name'] ?? '');
-        $new_email    = trim($_POST['email'] ?? '');
-        $password_raw = $_POST['password'] ?? '';
-        $new_role     = (($_POST['account_role'] ?? '') === 'admin') ? 'admin' : 'lecturer';
+        $new_name     = trim(post_string('full_name'));
+        $new_email    = trim(post_string('email'));
+        $password_raw = post_string('password');
+        $new_role     = ((post_string('account_role')) === 'admin') ? 'admin' : 'lecturer';
 
         if ($new_name === '' || $new_email === '') {
             $error = "Full name and email are required.";
@@ -89,9 +89,10 @@ if (isset($_POST['reset_password'])) {
 }
 
 // ── SECURE DELETE: POST + CSRF-token protected ──────────────────────────
-// History is preserved: audit_logs.user_id and mentorship_sessions.mentor_id
-// are ON DELETE SET NULL and keep the lecturer's name in actor_name /
-// mentor_name. Sessions that hadn't happened yet are declined so students
+// History is preserved: audit_logs.user_id, mentorship_sessions.mentor_id
+// and lecturer_subjects.user_id are ON DELETE SET NULL and keep the
+// lecturer's name in actor_name / mentor_name / former_lecturer_name (the
+// last written by a trigger, migration 017). Sessions that hadn't happened yet are declined so students
 // aren't left waiting on someone who has left.
 if (isset($_POST['delete_lecturer'])) {
     if (!csrf_verify()) {
@@ -121,7 +122,7 @@ if (isset($_POST['delete_lecturer'])) {
     }
 }
 
-if (isset($_GET['deleted'])) $success = "Lecturer deleted. Their audit history and past mentorship sessions have been kept.";
+if (isset($_GET['deleted'])) $success = "Lecturer deleted. Their audit history, past mentorship sessions and record of the subjects they taught have been kept.";
 
 redirect_after_success($success, $error, ['issued' => $issued]);
 
@@ -330,7 +331,7 @@ require '../includes/page_start.php';
                                     </button>
 
                                     <!-- FIX: Changed GET link to secure POST form to prevent CSRF -->
-                                    <form method="POST" class="d-inline m-0" onsubmit="return confirm('⚠️ Delete <?php echo h($row['full_name']); ?>? Their audit history and past sessions are kept; upcoming sessions will be declined.');">
+                                    <form method="POST" class="d-inline m-0" onsubmit="return confirm('⚠️ Delete <?php echo h($row['full_name']); ?>? Their audit history, past sessions and teaching record are kept; their subjects this semester become unassigned and upcoming sessions will be declined.');">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="delete_id" value="<?php echo $row['id']; ?>">
                                         <button type="submit" name="delete_lecturer" class="btn btn-action btn-delete">

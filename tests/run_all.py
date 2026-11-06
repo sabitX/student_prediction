@@ -2,7 +2,7 @@
 import os, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SUITES = ['test_crawl.py', 'test_support.py', 'test_weights.py', 'test_ew_email.py', 'test_exports.py']
+SUITES = ['test_crawl.py', 'test_support.py', 'test_weights.py', 'test_ew_email.py', 'test_exports.py', 'test_csv_upload.py', 'test_staff_history.py']
 
 env = dict(os.environ, PYTHONIOENCODING='utf-8')
 summary = []

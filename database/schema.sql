@@ -2,7 +2,7 @@
 -- Fresh install: create the database `student_prediction`
 -- (CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci), import this file as a
 -- user that can CREATE TRIGGER (e.g. root), then follow README
--- "First-time setup". Existing installs: run database/migrations/001–016
+-- "First-time setup". Existing installs: run database/migrations/001–017
 -- in order instead.
 --
 -- Generated from a database with all migrations applied, so a fresh
@@ -93,14 +93,17 @@ CREATE TABLE `courses` (
   KEY `idx_course_level` (`academic_level`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- user_id is NULL once the lecturer's account is deleted; the name is then
+-- kept in former_lecturer_name (trigger users_keep_teaching_bd, migration 017).
 CREATE TABLE `lecturer_subjects` (
-  `user_id` int(11) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `former_lecturer_name` varchar(100) DEFAULT NULL,
   `subject_id` int(11) NOT NULL,
   `semester_id` int(11) NOT NULL,
   PRIMARY KEY (`subject_id`,`semester_id`),
   KEY `user_id` (`user_id`),
   KEY `idx_lecturer_semester` (`semester_id`),
-  CONSTRAINT `lecturer_subjects_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `lecturer_subjects_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `lecturer_subjects_ibfk_2` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE,
   CONSTRAINT `lecturer_subjects_semester_fk` FOREIGN KEY (`semester_id`) REFERENCES `semesters` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -405,12 +408,12 @@ WHERE p.assignment IS NOT NULL
    OR p.final_exam IS NOT NULL
    OR p.attendance IS NOT NULL;
 
--- ── Rules a foreign key can't express (see migrations 004 and 005) ─────
+-- ── Rules a foreign key can't express (see migrations 004, 005, 017) ───
 DELIMITER $$
 
 CREATE TRIGGER lecturer_subjects_role_bi BEFORE INSERT ON lecturer_subjects FOR EACH ROW
 BEGIN
-    IF (SELECT role FROM users WHERE id = NEW.user_id) <> 'lecturer' THEN
+    IF NEW.user_id IS NULL OR (SELECT role FROM users WHERE id = NEW.user_id) <> 'lecturer' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Subjects can only be assigned to lecturers';
     END IF;
 END$$
@@ -454,6 +457,13 @@ BEGIN
        AND EXISTS (SELECT 1 FROM students WHERE user_id = OLD.id) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A student account with a student profile can''t change role';
     END IF;
+END$$
+
+-- Foreign-key actions don't fire triggers, so the name is saved here,
+-- before the SET NULL clears lecturer_subjects.user_id.
+CREATE TRIGGER users_keep_teaching_bd BEFORE DELETE ON users FOR EACH ROW
+BEGIN
+    UPDATE lecturer_subjects SET former_lecturer_name = OLD.full_name WHERE user_id = OLD.id;
 END$$
 
 DELIMITER ;

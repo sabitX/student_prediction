@@ -130,4 +130,10 @@ if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
 function h($str) {
     return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8');
 }
+
+// A posted text field, or '' when it is missing or was sent as an array
+// (name[]=x), which would otherwise make trim() and friends throw.
+function post_string($key) {
+    return is_string($_POST[$key] ?? null) ? $_POST[$key] : '';
+}
 ?>

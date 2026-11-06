@@ -41,8 +41,8 @@ $flash        = $book_success === '' ? ($flash_data['success'] ?? '') : '';
 if (isset($_POST['book_session'])) {
     $mentor_id  = (int)($_POST['mentor_id'] ?? 0);
     $subject_id = (int)($_POST['subject_id'] ?? 0);
-    $notes      = trim($_POST['meeting_notes'] ?? '');
-    [$when, $date_error] = parse_session_datetime($_POST['session_date'] ?? '');
+    $notes      = trim(post_string('meeting_notes'));
+    [$when, $date_error] = parse_session_datetime(post_string('session_date'));
     $mentor = valid_mentor_for_subject($conn, $mentor_id, $subject_id, (int)$user_id);
 
     // Help is only for subjects this student takes this semester.

@@ -211,7 +211,7 @@ Sidebar (shared, [includes/sidebar.php](includes/sidebar.php)):
 - **Add staff account:** lecturer or **administrator**. Email is validated, and the temporary password must be changed at first login.
 - **List:** lecturers and admins, with an Administrator badge, assigned subjects and creation date.
 - **Reset** a lecturer's password (becomes temporary).
-- **Delete** a lecturer. Their audit history and past sessions are **kept**, and their upcoming sessions are declined.
+- **Delete** a lecturer. Their audit history, past sessions and the record of which subjects they taught in each semester are **kept** (migration 017); their subjects this semester become unassigned and their upcoming sessions are declined.
 
 ### 5.8 Support Requests — [support_requests.php](admin/support_requests.php)
 - Lists requests from Contact Admin, Open first. Filter by status (Open + In Progress by default, Open, In Progress, Resolved, All), role and category, and search by reference, name, email or ID. Paged.
@@ -270,6 +270,7 @@ Sidebar: Dashboard · Enter Marks · CSV Upload · Audit Trail · Contact Admin 
 - **Row checks:**
   - student ID and subject code must be present
   - marks must be 0–100 or blank (text is rejected, never turned into 0)
+  - a blank cell keeps the mark already saved, so a sheet with only some columns filled in never erases the others; marks are cleared only in the Enter Marks grid
   - the subject must be one of the lecturer's active subjects
   - the student must exist and be enrolled this semester
 - Saved through the same routine as the grid, in **one transaction**.
@@ -327,6 +328,7 @@ Sidebar: Dashboard · What-If Calculator · Mentorship · My Transcript · Conta
   - cumulative weightage, grade points and **CGPA**
 - **PLO attainment (cumulative):** score, target and Attained / Not Attained for each PLO.
 - Grade scale: A+ ≥90, A ≥80, A- ≥75, B+ ≥70, B ≥65, B- ≥60, C+ ≥55, C ≥50, D+ ≥45, D ≥40, F <40.
+- D+ and D (40–49) are graded results that earn grade points (1.50 and 1.00) and count towards GPA/CGPA, even though the status band for under 50 is Fail and Pass/Fail shows Fail. This follows Nilai University's grading scale and is intended.
 
 ---
 
@@ -396,7 +398,7 @@ End-to-end suites run against a local copy (`python tests/run_all.py`): every pa
 | 7 | Transcript maths wrong / hard-coded | Real per-semester GPA and cumulative CGPA; GP for pending; At Risk in Remarks; real intake and semester count |
 | 8 | Archive / duplicate-code crash, no restore or rename | Clear duplicate messages, Restore, Edit modal |
 | 9 | Archived subjects still offered | Hidden from the grid, CSV, What-If, Mentorship and dashboard chart |
-| 10 | Deleting a lecturer erased audit and session history | SET NULL foreign keys and stored names; upcoming sessions declined |
+| 10 | Deleting a lecturer erased audit and session history | SET NULL foreign keys and stored names; upcoming sessions declined; past teaching assignments kept with the lecturer's name (migration 017) |
 | 11 | No enrolment; every student on every grid | Enrolments page; grid, CSV, stats and student pages use enrolments |
 | 12 | Semesters not linked to data | `semester_id` on marks and results; Semesters page; transcript by semester |
 | 13 | Weak mentorship validation, no cancel or reschedule | Full server checks, clash detection, student Cancel, lecturer Reschedule and Cancel |

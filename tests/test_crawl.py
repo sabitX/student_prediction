@@ -43,7 +43,7 @@ crawl('public', requests.Session(), ['index.php', 'auth/login.php', 'auth/login.
 r = requests.get(ROOT + 'no-such-page.php')
 check('missing page shows the custom 404', r.status_code == 404 and 'SPTS' in r.text)
 crawl('student', fake_session(sql("SELECT s.user_id FROM students s JOIN student_enrollments e ON e.student_id = s.id LIMIT 1"), 'student'), ['student/student_dashboard.php'])
-crawl('lecturer', fake_session(sql("SELECT user_id FROM lecturer_subjects LIMIT 1"), 'lecturer'), ['lecturer/lecturer_dashboard.php'])
+crawl('lecturer', fake_session(sql("SELECT user_id FROM lecturer_subjects WHERE user_id IS NOT NULL LIMIT 1"), 'lecturer'), ['lecturer/lecturer_dashboard.php'])
 crawl('admin', fake_session(sql("SELECT id FROM users WHERE role = 'admin' LIMIT 1"), 'admin'), ['admin/admin_dashboard.php'])
 remove_sessions()
 finish()

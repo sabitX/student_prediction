@@ -80,7 +80,7 @@ try {
         if ($active) {
             $sem = end($sem_ids);
             mysqli_query($conn, "INSERT INTO lecturer_subjects (user_id, subject_id, semester_id)
-                                 SELECT user_id, subject_id, $sem FROM lecturer_subjects WHERE semester_id = " . (int)$active);
+                                 SELECT user_id, subject_id, $sem FROM lecturer_subjects WHERE semester_id = " . (int)$active . " AND user_id IS NOT NULL");
         }
     }
 

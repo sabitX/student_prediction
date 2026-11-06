@@ -90,9 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 // existing code is reported clearly instead of silently changing that
 // subject or failing on the database's UNIQUE index.
 } elseif (isset($_POST['add_subject'])) {
-    $code        = strtoupper(trim($_POST['subject_code'] ?? ''));
-    $name        = trim($_POST['subject_name'] ?? '');
-    $credits     = parse_credit_hours($_POST['credit_hours'] ?? '');
+    $code        = strtoupper(trim(post_string('subject_code')));
+    $name        = trim(post_string('subject_name'));
+    $credits     = parse_credit_hours(post_string('credit_hours'));
     $lecturer_id = (int)($_POST['lecturer_id'] ?? 0);
 
     $stmt_check = mysqli_prepare($conn, "SELECT id, is_archived FROM subjects WHERE subject_code = ?");
@@ -135,8 +135,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 // ── Edit an existing subject's name / lecturer ─────────────────────────
 } elseif (isset($_POST['edit_subject'])) {
     $subject_id  = (int)($_POST['edit_id'] ?? 0);
-    $name        = trim($_POST['edit_name'] ?? '');
-    $credits     = parse_credit_hours($_POST['edit_credit_hours'] ?? '');
+    $name        = trim(post_string('edit_name'));
+    $credits     = parse_credit_hours(post_string('edit_credit_hours'));
     $lecturer_id = (int)($_POST['edit_lecturer_id'] ?? 0);
 
     $subject = active_subject($conn, $subject_id);

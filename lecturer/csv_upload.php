@@ -170,6 +170,9 @@ if (isset($_POST['upload'])) {
                         continue;
                     }
 
+                    // A blank cell keeps the mark already saved (never erases it).
+                    $marks = keep_saved_marks($conn, (int)$student['id'], (int)$subject['id'], $semester_id, $marks);
+
                     $ctx['student_code'] = $student['student_id'];
                     $ctx['subject_code'] = $subject['subject_code'];
                     $result = save_student_marks($conn, (int)$student['id'], (int)$subject['id'], $semester_id, $marks, $ctx);
@@ -283,7 +286,7 @@ require '../includes/page_start.php';
             </div>
             <div class="col-md-3">
                 <div style="font-size:1.8rem; font-weight:800; color:#CBD5E1; line-height:1; margin-bottom:8px;">02</div>
-                <p class="mb-0" style="font-size:0.85rem; color:#475569; font-weight:500;">Fill in the marks (leave blank if not assessed yet)</p>
+                <p class="mb-0" style="font-size:0.85rem; color:#475569; font-weight:500;">Fill in the marks (a blank cell keeps the saved mark)</p>
             </div>
             <div class="col-md-3">
                 <div style="font-size:1.8rem; font-weight:800; color:#CBD5E1; line-height:1; margin-bottom:8px;">03</div>
@@ -330,7 +333,7 @@ require '../includes/page_start.php';
         </div>
         <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
             <small class="text-muted" style="font-size:0.75rem;">
-                Marks must be numbers from 0 to 100 (decimals allowed), or left blank if not assessed yet.
+                Marks must be numbers from 0 to 100 (decimals allowed). Leave a cell blank if it isn't assessed yet; a blank never erases a saved mark (clear marks in Enter Marks).
             </small>
             <a href="csv_upload.php?download_template=1" class="btn btn-sm" style="background:#F1F5F9; color:#475569; border:1px solid #E2E8F0; font-weight:600;">
                 <i class="bi bi-download me-1"></i>Download CSV Template

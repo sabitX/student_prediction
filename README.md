@@ -28,11 +28,11 @@ Going live on a real server? Follow **DEPLOYMENT.md** (HTTPS, php.ini, backups, 
 
 ### Upgrading an existing install
 
-Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql`, `007_predictions_view_collation.sql`, `008_student_account_requests.sql`, `009_obe_and_early_warning.sql`, `010_normalization_review.sql`, `011_support_requests.sql`, `012_subject_weights.sql`, `013_early_warning_notices.sql`, `014_lecturer_subjects_unique.sql`, `015_assessment_weights.sql` and `016_result_status.sql`, each once, in that order, as MySQL `root` (004–010 create triggers, views and constraints). After that, do steps 5–6 above.
+Back up the database, then run `database/migrations/001_fault_fixes.sql` and then `002_onboarding.sql`, `003_account_requests.sql`, `004_schema_hardening.sql`, `005_integrity_checks.sql`, `006_predictions_view.sql`, `007_predictions_view_collation.sql`, `008_student_account_requests.sql`, `009_obe_and_early_warning.sql`, `010_normalization_review.sql`, `011_support_requests.sql`, `012_subject_weights.sql`, `013_early_warning_notices.sql`, `014_lecturer_subjects_unique.sql`, `015_assessment_weights.sql`, `016_result_status.sql` and `017_keep_teaching_history.sql`, each once, in that order, as MySQL `root` (004–010 create triggers, views and constraints). After that, do steps 5–6 above.
 
 ---
 
-If migrations 001–015 are already applied, run only `database/migrations/016_result_status.sql` for this update. It renames the final-result column and enforces the 100% weight-total constraint. Deploy the updated PHP code together with this migration.
+If migrations 001–016 are already applied, run only `database/migrations/017_keep_teaching_history.sql` for this update. Deleting a lecturer then keeps the record of the subjects they taught in each semester. Run it before deploying the updated PHP code: activating a semester relies on it.
 
 ## FIRST TIME SETUP (run once in browser)
 

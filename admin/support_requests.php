@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_id'])) {
     } elseif (!$req) {
         $error = "That support request no longer exists.";
     } elseif (isset($_POST['update_status'])) {
-        $status = $_POST['status'] ?? '';
+        $status = post_string('status');
         $note   = is_string($_POST['admin_note'] ?? null) ? trim($_POST['admin_note']) : '';
         if (!in_array($status, SUPPORT_STATUSES, true)) {
             $error = "Choose a valid status.";
@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_id'])) {
         }
     } elseif (isset($_POST['issue_password'])) {
         $check  = support_account_check($conn, $req);
-        $method = $_POST['verify_method'] ?? '';
+        $method = post_string('verify_method');
         if (!support_can_reset($req, $check)) {
             $error = "This request can't be used to reset an account. Only an open sign-in request whose email and role match a student or lecturer account can.";
         } elseif ((int)($_POST['account_id'] ?? 0) !== (int)$check['account']['id']) {

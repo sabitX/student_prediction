@@ -10,7 +10,9 @@
 
 require_once __DIR__ . '/grading.php';
 
-// Letter grade and grade point for a total (transcript scale).
+// Letter grade and grade point for a total (transcript scale). D+ and D
+// (40–49) earn grade points that count towards GPA, although their status
+// band is Fail: that is Nilai's grading scale, intended, not an error.
 function grade_from_score($score) {
     if ($score >= 90) return ['A+', 4.00];
     if ($score >= 80) return ['A',  4.00];

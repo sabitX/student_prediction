@@ -22,9 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Add a semester ─────────────────────────────────────────────────
     } elseif (isset($_POST['add_semester'])) {
-        $name  = trim($_POST['semester_name'] ?? '');
-        $start = $_POST['start_date'] ?? '';
-        $end   = $_POST['end_date'] ?? '';
+        $name  = trim(post_string('semester_name'));
+        $start = post_string('start_date');
+        $end   = post_string('end_date');
 
         if ($name === '' || !valid_date($start) || !valid_date($end)) {
             $error = "Semester name, start date and end date are required.";
@@ -67,11 +67,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Lecturers are assigned per semester. A semester with no
             // assignments yet starts with the previous semester's, so
             // lecturers keep their subjects until an admin changes them.
+            // Rows whose lecturer was deleted (user_id NULL, migration 017)
+            // are history only and aren't carried over.
             $copied = 0;
             $has_any = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM lecturer_subjects WHERE semester_id = " . (int)$id))[0] > 0;
             if (!$has_any && $prev_id > 0 && $prev_id !== $id) {
                 $stmt = mysqli_prepare($conn, "INSERT INTO lecturer_subjects (user_id, subject_id, semester_id)
-                                               SELECT user_id, subject_id, ? FROM lecturer_subjects WHERE semester_id = ?");
+                                               SELECT user_id, subject_id, ? FROM lecturer_subjects WHERE semester_id = ? AND user_id IS NOT NULL");
                 mysqli_stmt_bind_param($stmt, "ii", $id, $prev_id);
                 mysqli_stmt_execute($stmt);
                 $copied = mysqli_stmt_affected_rows($stmt);

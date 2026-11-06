@@ -3,6 +3,7 @@ require '../includes/session_check.php';
 require '../config/config.php';
 require '../includes/csrf.php';
 require '../includes/semester.php';
+require '../includes/pagination.php';
 
 // ── System-wide audit log (read-only) ───────────────────────────────────
 // Every mark change by every lecturer and every administrator action
@@ -13,7 +14,7 @@ $filter_actor  = (int)($_GET['actor'] ?? 0);
 // Filter choices are the action types actually present in the log.
 $action_types  = array_column(mysqli_fetch_all(mysqli_query($conn, "SELECT DISTINCT action FROM audit_logs ORDER BY action"), MYSQLI_ASSOC), 'action');
 $filter_action = in_array($_GET['action'] ?? '', $action_types, true) ? $_GET['action'] : '';
-$search        = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
+$search        = is_string($_GET['q'] ?? null) ? trim(mb_substr($_GET['q'], 0, 100)) : '';
 
 $where  = [];
 $types  = '';
@@ -31,7 +32,7 @@ if ($filter_action !== '') {
 if ($search !== '') {
     $where[] = 'a.details LIKE ?';
     $types  .= 's';
-    $params[] = '%' . $search . '%';
+    $params[] = like_pattern($search);   // % and _ are searched literally
 }
 $sql = "SELECT a.action, a.details, a.created_at, COALESCE(u.full_name, a.actor_name, 'Unknown') AS actor, (u.id IS NULL) AS actor_deleted
         FROM audit_logs a LEFT JOIN users u ON u.id = a.user_id"

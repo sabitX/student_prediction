@@ -77,6 +77,26 @@ function is_enrolled($conn, $student_db_id, $subject_id, $semester_id) {
     return $ok;
 }
 
+// Fills the blank components of $marks with the marks already saved for
+// this enrolment. The CSV upload uses this so a blank cell leaves a mark
+// as it is: a sheet with only one column filled in must not erase the
+// others. Clearing a mark is done deliberately in the Enter Marks grid.
+function keep_saved_marks($conn, $student_db_id, $subject_id, $semester_id, array $marks) {
+    $stmt = mysqli_prepare($conn, "SELECT p.assignment, p.midterm, p.final_exam, p.attendance
+                                   FROM performance p JOIN student_enrollments e ON e.id = p.enrollment_id
+                                   WHERE e.student_id = ? AND e.subject_id = ? AND e.semester_id = ?");
+    mysqli_stmt_bind_param($stmt, "iii", $student_db_id, $subject_id, $semester_id);
+    mysqli_stmt_execute($stmt);
+    $saved = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    mysqli_stmt_close($stmt);
+    foreach (MARK_FIELDS as $key => $label) {
+        if ($marks[$key] === null && $saved && $saved[$key] !== null) {
+            $marks[$key] = (float)$saved[$key];
+        }
+    }
+    return $marks;
+}
+
 // Saves one student's marks for one subject in one semester.
 // $ctx = ['user_id', 'user_name', 'source' ('Manual Mark Entry'|'CSV Upload'),
 //         'student_code', 'subject_code']

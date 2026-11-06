@@ -112,6 +112,7 @@ and the ACTIVE semester (semesters.is_active = 1)
       │                                                   ▼
       │                      For each student row (one DB transaction):
       │                      1. Validate: each mark numeric 0–100 or blank
+      │                         (CSV: a blank keeps the saved mark)
       │                      2. Nothing changed? → skip
       │                      3. Upsert raw marks  → PERFORMANCE (enrollment_id)
       │                      4. All 4 present? → view applies this semester's weights
@@ -222,9 +223,10 @@ The Student ID prefix implies a level (n0002 Diploma, n0003 Degree, n0004 Master
 |---|---|---|
 | subject_id | INT | **PK** (subject_id, semester_id); **FK → SUBJECTS.id**, CASCADE |
 | semester_id | INT | **FK → SEMESTERS.id**, CASCADE |
-| user_id | INT | **FK → USERS.id**, CASCADE; must be a lecturer (enforced by trigger) |
+| user_id | INT, NULL once the lecturer's account is deleted | **FK → USERS.id**, SET NULL; must be a lecturer when assigned (enforced by trigger) |
+| former_lecturer_name | VARCHAR(100), NULL (the name, kept only after the account is deleted; written by a trigger, migration 017) | |
 
-One lecturer per subject per semester. A lecturer is a USERS row with role = 'lecturer'; their name is USERS.full_name, never copied here. Activating a new semester carries over the previous semester's assignments if it has none.
+One lecturer per subject per semester. A lecturer is a USERS row with role = 'lecturer'; their name is USERS.full_name, not copied here while the account exists. If the account is deleted, the row stays as history: user_id becomes NULL and former_lecturer_name keeps the name. Activating a new semester carries over the previous semester's assignments (except those history-only rows) if it has none.
 
 **6. STUDENT_ENROLLMENTS** — which student takes which subject in which semester
 | Attribute | Type | Key |
@@ -454,7 +456,7 @@ Paste this into **https://mermaid.live** or draw.io (Arrange → Insert → Adva
 ```mermaid
 erDiagram
     USERS ||--o| STUDENTS : "has profile"
-    USERS ||--o{ LECTURER_SUBJECTS : "teaches"
+    USERS |o--o{ LECTURER_SUBJECTS : "teaches"
     SUBJECTS ||--o{ LECTURER_SUBJECTS : "taught by"
     SEMESTERS ||--o{ LECTURER_SUBJECTS : "in"
     COURSES ||--o{ STUDENTS : "taken by"
@@ -525,6 +527,7 @@ erDiagram
         int subject_id PK
         int semester_id PK
         int user_id FK
+        varchar former_lecturer_name "kept after account deletion"
     }
     STUDENT_ENROLLMENTS {
         int id PK
@@ -667,6 +670,7 @@ erDiagram
 - **mentor_id points to USERS.** The mentor can be a lecturer or a peer-mentor student's user account.
 - **Delete rules worth showing:**
   - Deleting a user **cascades** to their student profile, enrolments, marks and sessions as mentee.
+  - Deleting a lecturer keeps their LECTURER_SUBJECTS rows (**SET NULL**, name kept in former_lecturer_name).
   - AUDIT_LOGS and MENTORSHIP_SESSIONS (mentor side) use **SET NULL**, so history survives.
   - A semester that has marks cannot be deleted (**RESTRICT**).
 
@@ -717,7 +721,7 @@ erDiagram
 
 **Points that look like redundancy but aren't 3NF violations**
 
-- **Snapshot columns**: `audit_logs.actor_name`, `mentorship_sessions.mentor_name`, the name/ID/email in `support_requests`, and the name/email in `account_requests`. They record the value *at the time of the event*. If the user is renamed or deleted, these rows keep the old value, so they are not determined by `user_id`. They are facts about the event, which is why the audit trail survives account deletion.
+- **Snapshot columns**: `audit_logs.actor_name`, `mentorship_sessions.mentor_name`, the name/ID/email in `support_requests`, the name/email in `account_requests`, and `lecturer_subjects.former_lecturer_name` (filled only once the lecturer's account is deleted, so it never repeats a name `users` still holds). They record the value *at the time of the event*. If the user is renamed or deleted, these rows keep the old value, so they are not determined by `user_id`. They are facts about the event, which is why the audit trail survives account deletion.
 - **clo_assessments.subject_id**: `clo_id → subject_id` (a CLO belongs to one subject) and `clo_id` is not a key on its own, so the table is 3NF but not BCNF — `subject_id` is part of the key (subject_id, component), which 3NF allows. Keeping it is deliberate: the primary key can then enforce "each component of a subject assesses exactly one CLO", and the composite foreign key (clo_id, subject_id) guarantees the two can never disagree. Removing it would need a trigger for the same rule.
 - **cqi_actions.attainment_pct**: the class attainment the lecturer responded to, recorded with the action. Later mark changes don't rewrite it, so it is a fact about the action, not derived data.
 - **Generated columns**: `semesters.active_flag` and `account_requests.pending_email`. The database calculates them from other columns, so they can never disagree with their source. They exist only so a UNIQUE index can enforce "one active semester" and "one pending request per email". Under a strictly literal reading they are derived values, so those two tables are listed as 3NF rather than BCNF.

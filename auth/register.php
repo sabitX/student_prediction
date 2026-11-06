@@ -17,12 +17,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!csrf_verify()) {
         $error = "Your session expired. Please try again.";
     } else {
-    $full_name  = trim($_POST['full_name'] ?? '');
-    $email      = trim($_POST['email'] ?? '');
-    $password   = $_POST['password'] ?? '';
-    $confirm    = $_POST['confirm_password'] ?? '';
-    $student_id = normalize_student_id($_POST['student_id'] ?? '');
-    $course     = trim($_POST['course'] ?? '');
+    $full_name  = trim(post_string('full_name'));
+    $email      = trim(post_string('email'));
+    $password   = post_string('password');
+    $confirm    = post_string('confirm_password');
+    $student_id = normalize_student_id(post_string('student_id'));
+    $course     = trim(post_string('course'));
     $year       = (int)($_POST['year_of_study'] ?? 0);
 
     // Validation
@@ -382,7 +382,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <span class="input-group-text"><i class="bi bi-building"></i></span>
                     <select name="course" id="course" class="form-select" required>
                         <option value="">-- Select your programme --</option>
-                        <?php render_programme_options($_POST['course'] ?? ''); ?>
+                        <?php render_programme_options(post_string('course')); ?>
                     </select>
                 </div>
             </div>

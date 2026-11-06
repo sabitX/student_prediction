@@ -11,8 +11,8 @@
 //   n0004... -> Masters  (displayed as "Master's")
 //   anything else (including malformed/empty IDs) -> PhD
 //
-// Values returned match the `students.academic_level` ENUM('Diploma',
-// 'Degree','Masters','PhD') exactly, so the result can be inserted as-is.
+// Values returned match the `courses.academic_level` ENUM('Diploma',
+// 'Degree','Masters','PhD') exactly, so the result can be compared as-is.
 
 function detect_academic_level($student_id) {
     $prefix = strtolower(trim((string)$student_id));
